@@ -1,0 +1,158 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ *
+ * Design tokens. One dark theme, one accent (electric lime). Locked.
+ * ------------------------------------------------------------------ */
+@theme {
+  --color-bg: #050608;
+  --color-surface: #0a0c10;
+  --color-elevated: #11141a;
+  --color-line: #1b1f27;
+  --color-line-strong: #2a2f3a;
+
+  --color-fg: #f4f5f7;
+  --color-muted: #9298a3;
+  --color-faint: #585e69;
+
+  --color-accent: #c6ff3a;
+  --color-accent-dim: #a6db24;
+  --color-accent-ink: #0a0d00;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Inline so the font utilities emit the next/font CSS variables directly. */
+@theme inline {
+  --font-display: var(--font-space-grotesk);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ------------------------------------------------------------------ *
+ * Base layer
+ * ------------------------------------------------------------------ */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* Thin, dark scrollbar so the chrome stays out of the way. */
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-bg);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-line-strong);
+    border-radius: 999px;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Lenis smooth scroll (provider attaches the .lenis class to <html>)
+ * ------------------------------------------------------------------ */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ *
+ * Custom cursor + intro lock
+ * ------------------------------------------------------------------ */
+/* Hide the native pointer only while the follower is active (fine pointers). */
+@media (pointer: fine) {
+  html.cursor-on,
+  html.cursor-on * {
+    cursor: none !important;
+  }
+}
+
+/* Scroll is locked while the preloader is on screen. */
+html.is-loading {
+  overflow: hidden;
+  height: 100%;
+}
+
+/* ------------------------------------------------------------------ *
+ * Utilities
+ * ------------------------------------------------------------------ */
+@utility text-balance {
+  text-wrap: balance;
+}
+
+/* Display type: tight tracking, no line gap, optimized for oversized sizes. */
+@utility display {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.03em;
+  line-height: 0.92;
+}
+
+/* Small mono label used sparingly (eyebrows are rationed per taste rules). */
+@utility label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+
+/* SplitText sets up line/word masks; this keeps reveals clipped cleanly. */
+.split-mask {
+  overflow: hidden;
+  display: block;
+}
+
+/* Elements that animate in start hidden so there is no flash before GSAP runs.
+   Anything tagged .pre-anim is revealed by its section's timeline. */
+.pre-anim {
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+/* ------------------------------------------------------------------ *
+ * Reduced motion: kill every animation and reveal all hidden content.
+ * The JS layer also checks this, but CSS is the hard backstop.
+ * ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .pre-anim {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

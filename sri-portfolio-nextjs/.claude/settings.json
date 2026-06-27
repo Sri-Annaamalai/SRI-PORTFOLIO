@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/SRI ANNAAMALAI M/.claude/projects/c--Users-SRI-ANNAAMALAI-M-Desktop-sri-SRI-PORTFOLIO/memory/**)",
+      "WebFetch(domain:trionn.com)",
+      "WebSearch",
+      "Bash(cd /tmp)",
+      "Bash(curl -sL \"https://trionn.com/\" -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 Chrome/120 Safari/537.36\" -o trionn.html)",
+      "Bash(curl -sL \"https://trionn.com/\" -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) Chrome/120 Safari/537.36\" -o t.html)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\SRI ANNAAMALAI M\\.claude\\projects\\c--Users-SRI-ANNAAMALAI-M-Desktop-sri-SRI-PORTFOLIO\\memory"
+    ]
+  }
+}

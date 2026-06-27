@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "new-portfolio",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:new"],
+      "port": 3001
+    }
+  ]
+}

@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:#0a0a0c;
+    color:#f2f2f4;
+    font-family:'Space Grotesk',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  ::selection{ background:#ff5a3c; color:#0a0a0c; }
+  @keyframes marquee { from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
+  @keyframes scrolldot { 0%{ transform:translateY(0); opacity:0; } 30%{ opacity:1; } 100%{ transform:translateY(34px); opacity:0; } }
+  @keyframes pulse { 0%,100%{ opacity:1; } 50%{ opacity:0.35; } }
+  @keyframes spinslow { to{ transform:rotate(360deg); } }
+  a{ color:inherit; text-decoration:none; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.42/dist/lenis.min.js"></script>
+</helmet>
+
+<div id="scroll-progress" style="position:fixed;top:0;left:0;height:2px;width:100%;background:linear-gradient(90deg,#ff5a3c,#a06bff);transform:scaleX(0);transform-origin:left;z-index:90;"></div>
+
+<div id="cursor-ring" style="position:fixed;top:0;left:0;width:42px;height:42px;border:1px solid rgba(255,90,60,0.7);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:95;opacity:0;mix-blend-mode:difference;"></div>
+<div id="cursor-dot" style="position:fixed;top:0;left:0;width:6px;height:6px;background:#ff5a3c;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:96;opacity:0;"></div>
+
+<div id="preloader" style="position:fixed;inset:0;z-index:100;background:#0a0a0c;display:flex;flex-direction:column;justify-content:flex-end;padding:clamp(24px,5vw,64px);">
+  <div style="overflow:hidden;"><div data-pl style="font-family:'Space Mono',monospace;font-size:12px;letter-spacing:0.25em;text-transform:uppercase;color:#8a8a92;margin-bottom:18px;">Portfolio — Sri Annaamalai M</div></div>
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;">
+    <div style="overflow:hidden;"><div data-pl style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:clamp(48px,10vw,140px);line-height:0.9;letter-spacing:-0.03em;">Loading</div></div>
+    <div style="overflow:hidden;"><div data-pl id="preload-count" style="font-family:'Space Mono',monospace;font-size:clamp(40px,7vw,96px);font-weight:700;color:#ff5a3c;line-height:1;">000</div></div>
+  </div>
+  <div style="height:1px;width:100%;background:rgba(255,255,255,0.1);margin-top:28px;overflow:hidden;"><div id="preload-bar" style="height:100%;width:100%;background:#ff5a3c;transform:scaleX(0);transform-origin:left;"></div></div>
+</div>
+
+<div id="webgl" style="position:fixed;inset:0;z-index:0;pointer-events:none;"></div>
+
+<nav id="nav" style="position:fixed;top:0;left:0;right:0;z-index:80;display:flex;align-items:center;justify-content:space-between;padding:20px clamp(20px,6vw,100px);transition:background 0.4s ease,backdrop-filter 0.4s ease,border-color 0.4s ease,padding 0.4s ease;border-bottom:1px solid transparent;">
+  <a href="#home" data-scroll-to="#home" style="display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-0.01em;">
+    <span style="display:inline-flex;width:26px;height:26px;align-items:center;justify-content:center;background:#ff5a3c;color:#0a0a0c;border-radius:7px;font-family:'Space Mono',monospace;font-weight:700;font-size:14px;">S</span>
+    Sri&nbsp;Annaamalai
+  </a>
+  <div style="display:flex;align-items:center;gap:clamp(14px,2.4vw,38px);font-family:'Space Mono',monospace;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;">
+    <a href="#work" data-scroll-to="#work" data-navlink style="color:#b6b6bd;transition:color 0.25s;">Work</a>
+    <a href="#about" data-scroll-to="#about" data-navlink style="color:#b6b6bd;transition:color 0.25s;">About</a>
+    <a href="#skills" data-scroll-to="#skills" data-navlink style="color:#b6b6bd;transition:color 0.25s;">Stack</a>
+    <a href="#experience" data-scroll-to="#experience" data-navlink style="color:#b6b6bd;transition:color 0.25s;">Experience</a>
+    <a href="#contact" data-scroll-to="#contact" data-magnetic style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border:1px solid rgba(255,255,255,0.18);border-radius:100px;color:#f2f2f4;transition:background 0.25s,border-color 0.25s;">Contact</a>
+  </div>
+</nav>
+
+<main style="position:relative;z-index:1;">
+
+  <!-- ===================== HERO ===================== -->
+  <section id="home" data-screen-label="Hero" style="position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:120px clamp(20px,6vw,100px) 0;">
+    <div style="overflow:hidden;margin-bottom:clamp(20px,4vh,40px);"><div data-hero-line style="font-family:'Space Mono',monospace;font-size:clamp(11px,1.2vw,14px);letter-spacing:0.3em;text-transform:uppercase;color:#8a8a92;">Software Associate <span style="color:#ff5a3c;">@ SNS Square</span></div></div>
+
+    <h1 style="margin:0;font-weight:700;line-height:0.9;letter-spacing:-0.035em;font-size:clamp(46px,10.5vw,168px);text-transform:uppercase;">
+      <span style="display:block;overflow:hidden;"><span data-hero-line style="display:block;">Full&#8209;Stack</span></span>
+      <span style="display:block;overflow:hidden;"><span data-hero-line style="display:block;">Developer <span style="color:#8a8a92;">&amp;</span></span></span>
+      <span style="display:block;overflow:hidden;"><span data-hero-line style="display:block;"><span style="color:#ff5a3c;">AI</span> Engineer</span></span>
+    </h1>
+
+    <p data-hero-fade style="max-width:620px;margin:clamp(26px,4vh,42px) auto 0;font-size:clamp(16px,1.5vw,20px);line-height:1.6;color:#b6b6bd;">
+      I build production&#8209;grade web applications and AI&#8209;powered products — from enterprise platforms and recruitment systems to agentic AI workflows.
+    </p>
+
+    <div data-hero-fade style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:clamp(30px,5vh,48px);">
+      <a href="#work" data-scroll-to="#work" data-magnetic style="display:inline-flex;align-items:center;gap:10px;padding:16px 28px;background:#ff5a3c;color:#0a0a0c;border-radius:100px;font-weight:600;font-size:15px;">
+        View Work
+        <span style="font-family:'Space Mono',monospace;">→</span>
+      </a>
+      <a href="#contact" data-scroll-to="#contact" data-magnetic style="display:inline-flex;align-items:center;gap:10px;padding:16px 28px;border:1px solid rgba(255,255,255,0.2);border-radius:100px;font-weight:500;font-size:15px;color:#f2f2f4;">
+        Get in touch
+      </a>
+    </div>
+
+    <div style="position:absolute;bottom:30px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:12px;">
+      <span style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:0.3em;color:#6a6a72;text-transform:uppercase;">Scroll</span>
+      <div style="position:relative;width:1px;height:46px;background:rgba(255,255,255,0.12);overflow:hidden;"><div style="position:absolute;top:0;left:0;width:1px;height:14px;background:#ff5a3c;animation:scrolldot 1.8s ease-in-out infinite;"></div></div>
+    </div>
+  </section>
+
+  <!-- ===================== MARQUEE ===================== -->
+  <div style="border-top:1px solid rgba(255,255,255,0.08);border-bottom:1px solid rgba(255,255,255,0.08);padding:22px 0;overflow:hidden;background:rgba(10,10,12,0.5);backdrop-filter:blur(4px);">
+    <div style="display:flex;width:max-content;animation:marquee 28s linear infinite;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:0.12em;font-size:clamp(14px,1.6vw,20px);color:#cfcfd4;">
+      <span style="display:flex;align-items:center;">React.js <span style="color:#ff5a3c;margin:0 28px;">✦</span> Next.js <span style="color:#a06bff;margin:0 28px;">✦</span> TypeScript <span style="color:#ff5a3c;margin:0 28px;">✦</span> Node.js <span style="color:#a06bff;margin:0 28px;">✦</span> Python <span style="color:#ff5a3c;margin:0 28px;">✦</span> PostgreSQL <span style="color:#a06bff;margin:0 28px;">✦</span> Agentic AI <span style="color:#ff5a3c;margin:0 28px;">✦</span> LLM Integration <span style="color:#a06bff;margin:0 28px;">✦</span></span>
+      <span style="display:flex;align-items:center;" aria-hidden="true">React.js <span style="color:#ff5a3c;margin:0 28px;">✦</span> Next.js <span style="color:#a06bff;margin:0 28px;">✦</span> TypeScript <span style="color:#ff5a3c;margin:0 28px;">✦</span> Node.js <span style="color:#a06bff;margin:0 28px;">✦</span> Python <span style="color:#ff5a3c;margin:0 28px;">✦</span> PostgreSQL <span style="color:#a06bff;margin:0 28px;">✦</span> Agentic AI <span style="color:#ff5a3c;margin:0 28px;">✦</span> LLM Integration <span style="color:#a06bff;margin:0 28px;">✦</span></span>
+    </div>
+  </div>
+
+  <!-- ===================== ABOUT ===================== -->
+  <section id="about" data-screen-label="About" style="position:relative;padding:clamp(90px,14vh,180px) clamp(20px,6vw,100px);background:rgba(10,10,12,0.72);backdrop-filter:blur(3px);">
+    <div style="max-width:1400px;margin:0 auto;">
+      <div data-fade style="font-family:'Space Mono',monospace;font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#ff5a3c;margin-bottom:48px;">(01) — About</div>
+      <div style="display:grid;grid-template-columns:1fr;gap:clamp(40px,6vw,90px);align-items:start;" data-about-grid>
+        <div style="max-width:760px;">
+          <h2 style="margin:0;font-weight:500;font-size:clamp(26px,3.4vw,46px);line-height:1.28;letter-spacing:-0.02em;">
+            <span style="display:block;overflow:hidden;"><span data-line style="display:block;">I combine modern frontend</span></span>
+            <span style="display:block;overflow:hidden;"><span data-line style="display:block;">engineering with <span style="color:#a06bff;">scalable</span></span></span>
+            <span style="display:block;overflow:hidden;"><span data-line style="display:block;"><span style="color:#a06bff;">backends</span> and practical</span></span>
+            <span style="display:block;overflow:hidden;"><span data-line style="display:block;"><span style="color:#ff5a3c;">AI integrations.</span></span></span>
+          </h2>
+          <p data-fade style="margin:34px 0 0;font-size:clamp(15px,1.4vw,18px);line-height:1.7;color:#b6b6bd;max-width:620px;">
+            My work spans enterprise platforms, recruitment systems, learning ecosystems, workflow automation and Agentic AI applications. I enjoy taking products from idea to production — owning the frontend, the backend architecture, and the AI layer in between.
+          </p>
+          <div data-fade style="display:flex;gap:14px;flex-wrap:wrap;margin-top:36px;">
+            <span style="padding:9px 16px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:0.06em;color:#cfcfd4;">Full&#8209;Stack Engineering</span>
+            <span style="padding:9px 16px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:0.06em;color:#cfcfd4;">AI / LLM Integration</span>
+            <span style="padding:9px 16px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:0.06em;color:#cfcfd4;">Agentic Workflows</span>
+            <span style="padding:9px 16px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:0.06em;color:#cfcfd4;">Backend Architecture</span>
+          </div>
+        </div>
+        <div data-fade style="display:flex;flex-direction:column;gap:28px;">
+          <div style="width:100%;aspect-ratio:4/5;max-width:360px;border:1px solid rgba(255,255,255,0.1);border-radius:20px;overflow:hidden;">
+            <x-import component-from-global-scope="image-slot" from="./image-slot.js" id="portrait" shape="rect" placeholder="Drop your photo" hint-size="100%,100%" style="display:block;width:100%;height:100%;"></x-import>
+          </div>
+          <div style="display:flex;gap:30px;flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:700;font-size:clamp(34px,4vw,52px);color:#ff5a3c;line-height:1;"><span data-count="5" data-suffix="+">0</span></div>
+              <div style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:#8a8a92;margin-top:8px;">Products shipped</div>
+            </div>
+            <div>
+              <div style="font-weight:700;font-size:clamp(34px,4vw,52px);color:#a06bff;line-height:1;"><span data-count="6" data-suffix="">0</span></div>
+              <div style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:#8a8a92;margin-top:8px;">Tech domains</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SKILLS ===================== -->
+  <section id="skills" data-screen-label="Skills" style="position:relative;padding:clamp(90px,14vh,180px) clamp(20px,6vw,100px);background:rgba(10,10,12,0.78);backdrop-filter:blur(3px);">
+    <div style="max-width:1400px;margin:0 auto;">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:56px;">
+        <div>
+          <div data-fade style="font-family:'Space Mono',monospace;font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#ff5a3c;margin-bottom:24px;">(02) — Stack</div>
+          <h2 style="margin:0;font-weight:700;font-size:clamp(34px,6vw,86px);line-height:0.95;letter-spacing:-0.03em;text-transform:uppercase;">
+            <span style="display:block;overflow:hidden;"><span data-line style="display:block;">Tools of</span></span>
+            <span style="display:block;overflow:hidden;"><span data-line style="display:block;">the trade</span></span>
+          </h2>
+        </div>
+        <p data-fade style="max-width:340px;font-size:15px;line-height:1.6;color:#8a8a92;">The stack I reach for to take products from prototype to production.</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;" data-skill-grid>
+        <div data-fade data-skill-card style="padding:30px;border:1px solid rgba(255,255,255,0.08);border-radius:18px;background:rgba(20,20,24,0.5);transition:transform 0.4s cubic-bezier(.2,.8,.2,1),border-color 0.4s,background 0.4s;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;"><span style="font-weight:600;font-size:19px;">Frontend</span><span style="font-family:'Space Mono',monospace;font-size:12px;color:#ff5a3c;">01</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:9px;">
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">React.js</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">Next.js</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">TypeScript</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">JavaScript</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">Tailwind CSS</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">HTML / CSS</span>
+          </div>
+        </div>
+        <div data-fade data-skill-card style="padding:30px;border:1px solid rgba(255,255,255,0.08);border-radius:18px;background:rgba(20,20,24,0.5);transition:transform 0.4s cubic-bezier(.2,.8,.2,1),border-color 0.4s,background 0.4s;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;"><span style="font-weight:600;font-size:19px;">Backend</span><span style="font-family:'Space Mono',monospace;font-size:12px;color:#ff5a3c;">02</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:9px;">
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">Node.js</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">Express.js</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">Python</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">REST APIs</span>
+          </div>
+        </div>
+        <div data-fade data-skill-card style="padding:30px;border:1px solid rgba(255,255,255,0.08);border-radius:18px;background:rgba(20,20,24,0.5);transition:transform 0.4s cubic-bezier(.2,.8,.2,1),border-color 0.4s,background 0.4s;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;"><span style="font-weight:600;font-size:19px;">Databases</span><span style="font-family:'Space Mono',monospace;font-size:12px;color:#ff5a3c;">03</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:9px;">
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">PostgreSQL</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">MongoDB</span>
+          </div>
+        </div>
+        <div data-fade data-skill-card style="padding:30px;border:1px solid rgba(160,107,255,0.22);border-radius:18px;background:rgba(160,107,255,0.06);transition:transform 0.4s cubic-bezier(.2,.8,.2,1),border-color 0.4s,background 0.4s;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;"><span style="font-weight:600;font-size:19px;">AI &amp; LLM</span><span style="font-family:'Space Mono',monospace;font-size:12px;color:#a06bff;">04</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:9px;">
+            <span style="padding:7px 13px;background:rgba(160,107,255,0.12);border-radius:8px;font-size:13px;color:#d8c8ff;">Agentic AI</span>
+            <span style="padding:7px 13px;background:rgba(160,107,255,0.12);border-radius:8px;font-size:13px;color:#d8c8ff;">LLM Integration</span>
+            <span style="padding:7px 13px;background:rgba(160,107,255,0.12);border-radius:8px;font-size:13px;color:#d8c8ff;">Prompt Engineering</span>
+            <span style="padding:7px 13px;background:rgba(160,107,255,0.12);border-radius:8px;font-size:13px;color:#d8c8ff;">Local LLM Deployment</span>
+            <span style="padding:7px 13px;background:rgba(160,107,255,0.12);border-radius:8px;font-size:13px;color:#d8c8ff;">LM Studio</span>
+            <span style="padding:7px 13px;background:rgba(160,107,255,0.12);border-radius:8px;font-size:13px;color:#d8c8ff;">llama.cpp</span>
+            <span style="padding:7px 13px;background:rgba(160,107,255,0.12);border-radius:8px;font-size:13px;color:#d8c8ff;">Gemma 27B</span>
+          </div>
+        </div>
+        <div data-fade data-skill-card style="padding:30px;border:1px solid rgba(255,255,255,0.08);border-radius:18px;background:rgba(20,20,24,0.5);transition:transform 0.4s cubic-bezier(.2,.8,.2,1),border-color 0.4s,background 0.4s;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;"><span style="font-weight:600;font-size:19px;">Cloud &amp; DevOps</span><span style="font-family:'Space Mono',monospace;font-size:12px;color:#ff5a3c;">05</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:9px;">
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">AWS</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">Git</span>
+          </div>
+        </div>
+        <div data-fade data-skill-card style="padding:30px;border:1px solid rgba(255,255,255,0.08);border-radius:18px;background:rgba(20,20,24,0.5);transition:transform 0.4s cubic-bezier(.2,.8,.2,1),border-color 0.4s,background 0.4s;">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;"><span style="font-weight:600;font-size:19px;">Tools</span><span style="font-family:'Space Mono',monospace;font-size:12px;color:#ff5a3c;">06</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:9px;">
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">VS Code</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">Cursor</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">Claude Code</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">Windsurf</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">Trae</span>
+            <span style="padding:7px 13px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px;color:#cfcfd4;">Antigravity</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== WORK ===================== -->
+  <section id="work" data-screen-label="Work" style="position:relative;padding:clamp(90px,14vh,180px) clamp(20px,6vw,100px);background:rgba(10,10,12,0.82);backdrop-filter:blur(3px);">
+    <div style="max-width:1400px;margin:0 auto;">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:64px;">
+        <div>
+          <div data-fade style="font-family:'Space Mono',monospace;font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#ff5a3c;margin-bottom:24px;">(03) — Selected Work</div>
+          <h2 style="margin:0;font-weight:700;font-size:clamp(34px,6vw,86px);line-height:0.95;letter-spacing:-0.03em;text-transform:uppercase;">
+            <span style="display:block;overflow:hidden;"><span data-line style="display:block;">Things I&#8217;ve</span></span>
+            <span style="display:block;overflow:hidden;"><span data-line style="display:block;">shipped</span></span>
+          </h2>
+        </div>
+        <p data-fade style="max-width:340px;font-size:15px;line-height:1.6;color:#8a8a92;">Enterprise products built end&#8209;to&#8209;end at SNS Square — full&#8209;stack engineering with AI woven through.</p>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:clamp(40px,7vw,110px);">
+
+        <!-- Project 1 -->
+        <article data-project style="display:grid;grid-template-columns:1fr;gap:36px;align-items:center;">
+          <div data-fade data-media style="position:relative;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);aspect-ratio:16/11;background:#141417;">
+            <div data-mediabg style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(135deg,#141417,#141417 14px,#17171b 14px,#17171b 28px);font-family:'Space Mono',monospace;font-size:12px;letter-spacing:0.14em;color:#55555c;text-transform:uppercase;">Talent Ecosystem — screenshot</div>
+            <div data-overlay style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(255,90,60,0.16),transparent);opacity:0;transition:opacity 0.5s;"></div>
+          </div>
+          <div data-fade>
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;"><span style="font-family:'Space Mono',monospace;font-size:13px;color:#8a8a92;">01</span><span style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:#ff5a3c;border:1px solid rgba(255,90,60,0.35);padding:4px 10px;border-radius:100px;">Enterprise · Current</span></div>
+            <h3 style="margin:0 0 14px;font-weight:600;font-size:clamp(26px,3.2vw,42px);letter-spacing:-0.02em;">Talent Ecosystem Platform</h3>
+            <p style="margin:0 0 22px;font-size:clamp(15px,1.4vw,17px);line-height:1.7;color:#b6b6bd;max-width:560px;">A unified ecosystem combining recruitment, a learning platform and a job marketplace into one product — with end&#8209;to&#8209;end user tracking, personalized recommendations and an agentic AI layer powering an enterprise dashboard.</p>
+            <div style="display:flex;gap:9px;flex-wrap:wrap;">
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">Next.js</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">Node.js</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">PostgreSQL</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(160,107,255,0.3);border-radius:100px;color:#d8c8ff;">Agentic AI</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Project 2 -->
+        <article data-project style="display:grid;grid-template-columns:1fr;gap:36px;align-items:center;">
+          <div data-fade data-media style="position:relative;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);aspect-ratio:16/11;background:#141417;">
+            <img src="assets/dragon.png" alt="Dragon Suite — HyrDragon" data-zoom style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;object-position:top center;transition:transform 0.7s cubic-bezier(.2,.8,.2,1);">
+            <div data-overlay style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(255,90,60,0.16),transparent);opacity:0;transition:opacity 0.5s;"></div>
+          </div>
+          <div data-fade>
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;"><span style="font-family:'Space Mono',monospace;font-size:13px;color:#8a8a92;">02</span><span style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:#ff5a3c;border:1px solid rgba(255,90,60,0.35);padding:4px 10px;border-radius:100px;">Recruitment · Flagship</span></div>
+            <h3 style="margin:0 0 14px;font-weight:600;font-size:clamp(26px,3.2vw,42px);letter-spacing:-0.02em;">HyrDragon — Dragon Suite</h3>
+            <p style="margin:0 0 22px;font-size:clamp(15px,1.4vw,17px);line-height:1.7;color:#b6b6bd;max-width:560px;">A full recruitment platform spanning candidate management, hiring pipelines, resume processing and interview management — packaged as a modular super&#8209;app spotting the right talent in every candidate.</p>
+            <div style="display:flex;gap:9px;flex-wrap:wrap;">
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">React.js</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">Node.js</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">MongoDB</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Project 3 -->
+        <article data-project style="display:grid;grid-template-columns:1fr;gap:36px;align-items:center;">
+          <div data-fade data-media style="position:relative;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);aspect-ratio:16/11;background:#141417;">
+            <img src="assets/hyre.png" alt="AI Video Interview Assessment" data-zoom style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;object-position:top center;transition:transform 0.7s cubic-bezier(.2,.8,.2,1);">
+            <div data-overlay style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(160,107,255,0.18),transparent);opacity:0;transition:opacity 0.5s;"></div>
+          </div>
+          <div data-fade>
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;"><span style="font-family:'Space Mono',monospace;font-size:13px;color:#8a8a92;">03</span><span style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:#a06bff;border:1px solid rgba(160,107,255,0.4);padding:4px 10px;border-radius:100px;">Recruitment AI</span></div>
+            <h3 style="margin:0 0 14px;font-weight:600;font-size:clamp(26px,3.2vw,42px);letter-spacing:-0.02em;">AI Video Interview Assessment</h3>
+            <p style="margin:0 0 22px;font-size:clamp(15px,1.4vw,17px);line-height:1.7;color:#b6b6bd;max-width:560px;">An AI&#8209;powered platform that lets companies run video interviews with automated evaluation — candidate scoring, AI&#8209;generated feedback reports, interview analytics and hiring insights, all under an admin control panel.</p>
+            <div style="display:flex;gap:9px;flex-wrap:wrap;">
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">React.js</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">Python</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(160,107,255,0.3);border-radius:100px;color:#d8c8ff;">LLMs</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">Analytics</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Project 4 -->
+        <article data-project style="display:grid;grid-template-columns:1fr;gap:36px;align-items:center;">
+          <div data-fade data-media style="position:relative;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);aspect-ratio:16/11;background:#141417;">
+            <div style="position:absolute;inset:0;">
+              <x-import component-from-global-scope="image-slot" from="./image-slot.js" id="proj-milai" shape="rect" placeholder="Drop MilAi screenshot" hint-size="100%,100%" style="display:block;width:100%;height:100%;"></x-import>
+            </div>
+            <div data-overlay style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(160,107,255,0.18),transparent);opacity:0;transition:opacity 0.5s;pointer-events:none;"></div>
+          </div>
+          <div data-fade>
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;"><span style="font-family:'Space Mono',monospace;font-size:13px;color:#8a8a92;">04</span><span style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:#a06bff;border:1px solid rgba(160,107,255,0.4);padding:4px 10px;border-radius:100px;">EdTech AI</span></div>
+            <h3 style="margin:0 0 14px;font-weight:600;font-size:clamp(26px,3.2vw,42px);letter-spacing:-0.02em;">MilAi</h3>
+            <p style="margin:0 0 22px;font-size:clamp(15px,1.4vw,17px);line-height:1.7;color:#b6b6bd;max-width:560px;">An AI&#8209;powered learning platform that teaches and trains users toward their desired goals — course delivery, learning management and user progress tracking wrapped in an AI&#8209;assisted learning experience.</p>
+            <div style="display:flex;gap:9px;flex-wrap:wrap;">
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">Next.js</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(160,107,255,0.3);border-radius:100px;color:#d8c8ff;">LLMs</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">LMS</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Project 5 -->
+        <article data-project style="display:grid;grid-template-columns:1fr;gap:36px;align-items:center;">
+          <div data-fade data-media style="position:relative;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);aspect-ratio:16/11;background:#141417;">
+            <div style="position:absolute;inset:0;">
+              <x-import component-from-global-scope="image-slot" from="./image-slot.js" id="proj-agent" shape="rect" placeholder="Drop Agent Builder screenshot" hint-size="100%,100%" style="display:block;width:100%;height:100%;"></x-import>
+            </div>
+            <div data-overlay style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(255,90,60,0.16),transparent);opacity:0;transition:opacity 0.5s;pointer-events:none;"></div>
+          </div>
+          <div data-fade>
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;"><span style="font-family:'Space Mono',monospace;font-size:13px;color:#8a8a92;">05</span><span style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:#ff5a3c;border:1px solid rgba(255,90,60,0.35);padding:4px 10px;border-radius:100px;">Internal · Automation</span></div>
+            <h3 style="margin:0 0 14px;font-weight:600;font-size:clamp(26px,3.2vw,42px);letter-spacing:-0.02em;">Agent Builder</h3>
+            <p style="margin:0 0 22px;font-size:clamp(15px,1.4vw,17px);line-height:1.7;color:#b6b6bd;max-width:560px;">An internal automation platform in the spirit of n8n — a visual flow builder for enterprise workflow automation, with AI workflow integration and tooling that boosts internal productivity.</p>
+            <div style="display:flex;gap:9px;flex-wrap:wrap;">
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">React.js</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(255,255,255,0.12);border-radius:100px;color:#cfcfd4;">Node.js</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;padding:6px 12px;border:1px solid rgba(160,107,255,0.3);border-radius:100px;color:#d8c8ff;">AI Workflows</span>
+            </div>
+          </div>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== EXPERIENCE ===================== -->
+  <section id="experience" data-screen-label="Experience" style="position:relative;padding:clamp(90px,14vh,180px) clamp(20px,6vw,100px);background:rgba(10,10,12,0.78);backdrop-filter:blur(3px);">
+    <div style="max-width:1400px;margin:0 auto;">
+      <div data-fade style="font-family:'Space Mono',monospace;font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#ff5a3c;margin-bottom:56px;">(04) — Experience</div>
+      <div style="display:grid;grid-template-columns:1fr;gap:48px;" data-exp-grid>
+        <div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+            <span style="width:9px;height:9px;border-radius:50%;background:#ff5a3c;animation:pulse 2s ease-in-out infinite;"></span>
+            <span style="font-family:'Space Mono',monospace;font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#ff5a3c;">Now</span>
+          </div>
+          <h3 style="margin:0;font-weight:700;font-size:clamp(34px,5vw,68px);line-height:0.98;letter-spacing:-0.03em;">
+            <span style="display:block;overflow:hidden;"><span data-line style="display:block;">SNS Square</span></span>
+          </h3>
+          <p data-fade style="margin:18px 0 0;font-size:clamp(17px,1.6vw,22px);color:#f2f2f4;font-weight:500;">Software Associate</p>
+          <p data-fade style="margin:14px 0 0;font-size:15px;line-height:1.7;color:#8a8a92;max-width:440px;">Working as a Full&#8209;Stack Developer and AI Engineer across multiple enterprise products — owning frontend, backend architecture and the AI layer.</p>
+        </div>
+        <div data-fade>
+          <div style="font-family:'Space Mono',monospace;font-size:12px;letter-spacing:0.15em;text-transform:uppercase;color:#8a8a92;margin-bottom:24px;">Responsibilities</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden;">
+            <div data-resp style="padding:22px;background:#0e0e11;display:flex;gap:14px;align-items:flex-start;"><span style="font-family:'Space Mono',monospace;font-size:12px;color:#ff5a3c;">01</span><span style="font-size:15px;color:#cfcfd4;line-height:1.5;">Building scalable web applications</span></div>
+            <div data-resp style="padding:22px;background:#0e0e11;display:flex;gap:14px;align-items:flex-start;"><span style="font-family:'Space Mono',monospace;font-size:12px;color:#ff5a3c;">02</span><span style="font-size:15px;color:#cfcfd4;line-height:1.5;">Developing AI&#8209;powered enterprise solutions</span></div>
+            <div data-resp style="padding:22px;background:#0e0e11;display:flex;gap:14px;align-items:flex-start;"><span style="font-family:'Space Mono',monospace;font-size:12px;color:#ff5a3c;">03</span><span style="font-size:15px;color:#cfcfd4;line-height:1.5;">Designing backend architecture</span></div>
+            <div data-resp style="padding:22px;background:#0e0e11;display:flex;gap:14px;align-items:flex-start;"><span style="font-family:'Space Mono',monospace;font-size:12px;color:#a06bff;">04</span><span style="font-size:15px;color:#cfcfd4;line-height:1.5;">Implementing Agentic AI workflows</span></div>
+            <div data-resp style="padding:22px;background:#0e0e11;display:flex;gap:14px;align-items:flex-start;"><span style="font-family:'Space Mono',monospace;font-size:12px;color:#a06bff;">05</span><span style="font-size:15px;color:#cfcfd4;line-height:1.5;">Integrating LLMs into production apps</span></div>
+            <div data-resp style="padding:22px;background:#0e0e11;display:flex;gap:14px;align-items:flex-start;"><span style="font-family:'Space Mono',monospace;font-size:12px;color:#ff5a3c;">06</span><span style="font-size:15px;color:#cfcfd4;line-height:1.5;">Building internal automation platforms</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SERVICES ===================== -->
+  <section id="services" data-screen-label="Services" style="position:relative;padding:clamp(90px,14vh,180px) clamp(20px,6vw,100px);background:rgba(10,10,12,0.82);backdrop-filter:blur(3px);">
+    <div style="max-width:1400px;margin:0 auto;">
+      <div data-fade style="font-family:'Space Mono',monospace;font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#ff5a3c;margin-bottom:24px;">(05) — What I do</div>
+      <h2 style="margin:0 0 56px;font-weight:700;font-size:clamp(34px,6vw,86px);line-height:0.95;letter-spacing:-0.03em;text-transform:uppercase;">
+        <span style="display:block;overflow:hidden;"><span data-line style="display:block;">How I can <span style="color:#ff5a3c;">help</span></span></span>
+      </h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.08);border-radius:20px;overflow:hidden;">
+        <div data-fade data-service style="padding:clamp(28px,3vw,44px);background:#0d0d10;transition:background 0.4s;">
+          <div style="font-family:'Space Mono',monospace;font-size:12px;color:#ff5a3c;margin-bottom:24px;">01</div>
+          <h3 style="margin:0 0 12px;font-weight:600;font-size:21px;">Full&#8209;Stack Web Development</h3>
+          <p style="margin:0;font-size:14.5px;line-height:1.65;color:#8a8a92;">End&#8209;to&#8209;end web apps with React, Next.js and Node — from polished UI to scalable backend.</p>
+        </div>
+        <div data-fade data-service style="padding:clamp(28px,3vw,44px);background:#0d0d10;transition:background 0.4s;">
+          <div style="font-family:'Space Mono',monospace;font-size:12px;color:#a06bff;margin-bottom:24px;">02</div>
+          <h3 style="margin:0 0 12px;font-weight:600;font-size:21px;">AI &amp; LLM Engineering</h3>
+          <p style="margin:0;font-size:14.5px;line-height:1.65;color:#8a8a92;">Integrating and deploying LLMs into production, including local model hosting and tuning.</p>
+        </div>
+        <div data-fade data-service style="padding:clamp(28px,3vw,44px);background:#0d0d10;transition:background 0.4s;">
+          <div style="font-family:'Space Mono',monospace;font-size:12px;color:#a06bff;margin-bottom:24px;">03</div>
+          <h3 style="margin:0 0 12px;font-weight:600;font-size:21px;">Agentic AI Workflows</h3>
+          <p style="margin:0;font-size:14.5px;line-height:1.65;color:#8a8a92;">Designing autonomous, multi&#8209;step AI agents that automate real, repetitive work.</p>
+        </div>
+        <div data-fade data-service style="padding:clamp(28px,3vw,44px);background:#0d0d10;transition:background 0.4s;">
+          <div style="font-family:'Space Mono',monospace;font-size:12px;color:#ff5a3c;margin-bottom:24px;">04</div>
+          <h3 style="margin:0 0 12px;font-weight:600;font-size:21px;">Backend Architecture</h3>
+          <p style="margin:0;font-size:14.5px;line-height:1.65;color:#8a8a92;">Designing scalable APIs, data models and services that hold up under real load.</p>
+        </div>
+        <div data-fade data-service style="padding:clamp(28px,3vw,44px);background:#0d0d10;transition:background 0.4s;">
+          <div style="font-family:'Space Mono',monospace;font-size:12px;color:#ff5a3c;margin-bottom:24px;">05</div>
+          <h3 style="margin:0 0 12px;font-weight:600;font-size:21px;">Automation Platforms</h3>
+          <p style="margin:0;font-size:14.5px;line-height:1.65;color:#8a8a92;">Building visual, n8n&#8209;style workflow tools that streamline internal operations.</p>
+        </div>
+        <div data-fade data-service style="padding:clamp(28px,3vw,44px);background:#0d0d10;transition:background 0.4s;">
+          <div style="font-family:'Space Mono',monospace;font-size:12px;color:#a06bff;margin-bottom:24px;">06</div>
+          <h3 style="margin:0 0 12px;font-weight:600;font-size:21px;">AI Product Integration</h3>
+          <p style="margin:0;font-size:14.5px;line-height:1.65;color:#8a8a92;">Embedding AI into existing products with practical, reliable, well&#8209;designed UX.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== CONTACT ===================== -->
+  <section id="contact" data-screen-label="Contact" style="position:relative;padding:clamp(100px,16vh,200px) clamp(20px,6vw,100px) 0;text-align:center;">
+    <div style="max-width:1100px;margin:0 auto;">
+      <div data-fade style="font-family:'Space Mono',monospace;font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#ff5a3c;margin-bottom:32px;">(06) — Contact</div>
+      <h2 style="margin:0;font-weight:700;font-size:clamp(40px,9vw,150px);line-height:0.92;letter-spacing:-0.04em;text-transform:uppercase;">
+        <span style="display:block;overflow:hidden;"><span data-line style="display:block;">Let&#8217;s build</span></span>
+        <span style="display:block;overflow:hidden;"><span data-line style="display:block;">something <span style="color:#ff5a3c;">intelligent</span></span></span>
+      </h2>
+      <p data-fade style="max-width:560px;margin:36px auto 0;font-size:clamp(16px,1.5vw,19px);line-height:1.6;color:#b6b6bd;">Open to opportunities and collaborations in full&#8209;stack engineering and applied AI. Let&#8217;s talk.</p>
+      <div data-fade style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:44px;">
+        <a href="mailto:hello@example.com" data-magnetic style="display:inline-flex;align-items:center;gap:10px;padding:18px 34px;background:#ff5a3c;color:#0a0a0c;border-radius:100px;font-weight:600;font-size:16px;">Email me <span style="font-family:'Space Mono',monospace;">↗</span></a>
+        <a href="#" data-resume data-magnetic style="display:inline-flex;align-items:center;gap:10px;padding:18px 34px;border:1px solid rgba(255,255,255,0.2);border-radius:100px;font-weight:500;font-size:16px;color:#f2f2f4;">Download Résumé <span style="font-family:'Space Mono',monospace;">↓</span></a>
+      </div>
+      <div data-fade style="display:flex;gap:28px;flex-wrap:wrap;justify-content:center;margin-top:48px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;">
+        <a href="#" data-social style="color:#8a8a92;transition:color 0.25s;">GitHub</a>
+        <a href="#" data-social style="color:#8a8a92;transition:color 0.25s;">LinkedIn</a>
+        <a href="#" data-social style="color:#8a8a92;transition:color 0.25s;">X / Twitter</a>
+      </div>
+    </div>
+
+    <footer style="margin-top:clamp(90px,14vh,160px);border-top:1px solid rgba(255,255,255,0.08);padding:32px 0;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:0.08em;color:#6a6a72;text-transform:uppercase;">
+      <span style="display:flex;align-items:center;gap:10px;"><span style="display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;background:#ff5a3c;color:#0a0a0c;border-radius:6px;font-weight:700;font-size:12px;">S</span>Sri Annaamalai M</span>
+      <span>© 2026 — Built with intent</span>
+    </footer>
+  </section>
+
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;},&quot;motion&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Maximum&quot;,&quot;Balanced&quot;,&quot;Subtle&quot;],&quot;default&quot;:&quot;Maximum&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;orbColor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Coral&quot;,&quot;Violet&quot;,&quot;Lime&quot;,&quot;Blue&quot;],&quot;default&quot;:&quot;Coral&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;ambientWebGL&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  renderVals() { return {}; }
+
+  componentDidMount() {
+    if (this._init) return;
+    this._init = true;
+    this._clock = performance.now();
+    this._spin = 0;
+    this._safety = setTimeout(() => this.hidePreloader(), 6500);
+    this.waitForLibs();
+  }
+
+  componentWillUnmount() {
+    this._dead = true;
+    if (this._onResize) window.removeEventListener('resize', this._onResize);
+    if (this._gsap) this._gsap.ticker.remove(this.tick);
+    if (this._lenis) this._lenis.destroy();
+  }
+
+  $(id) { return document.getElementById(id); }
+  q(sel) { return Array.from(document.querySelectorAll(sel)); }
+
+  waitForLibs() {
+    if (this._dead) return;
+    if (window.THREE && window.gsap && window.ScrollTrigger && window.Lenis) {
+      this.start();
+    } else {
+      setTimeout(() => this.waitForLibs(), 60);
+    }
+  }
+
+  start() {
+    const gsap = window.gsap;
+    const ScrollTrigger = window.ScrollTrigger;
+    gsap.registerPlugin(ScrollTrigger);
+    this._gsap = gsap;
+    this._ST = ScrollTrigger;
+    this.fine = window.matchMedia('(pointer:fine)').matches;
+    this.mo = this.props.motion || 'Maximum';
+    this.speed = { Maximum: 1, Balanced: 0.72, Subtle: 0.45 }[this.mo] || 1;
+    this.mouse = { x: 0, y: 0, tx: 0, ty: 0 };
+
+    try { this.initLenis(); } catch (e) { console.warn('lenis', e); }
+    try { this.initThree(); } catch (e) { console.warn('three', e); }
+    if (this.fine) { try { this.initCursor(); } catch (e) {} }
+    try { this.initScrollUI(); } catch (e) {}
+    try { this.initReveals(); } catch (e) {}
+    try { this.initMagnetic(); } catch (e) {}
+    try { this.initNav(); } catch (e) {}
+    try { this.initHover(); } catch (e) {}
+    this.runPreloader();
+
+    gsap.ticker.add(this.tick);
+    gsap.ticker.lagSmoothing(0);
+    this._onResize = () => this.onResize();
+    window.addEventListener('resize', this._onResize);
+  }
+
+  /* ---------- smooth scroll ---------- */
+  initLenis() {
+    this._lenis = new window.Lenis({ lerp: 0.09, wheelMultiplier: 1, smoothWheel: true });
+    this._lenis.on('scroll', () => this._ST.update());
+  }
+
+  /* ---------- three.js ---------- */
+  makeSprite() {
+    const THREE = window.THREE;
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const x = c.getContext('2d');
+    const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.25, 'rgba(255,255,255,0.85)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g;
+    x.fillRect(0, 0, 64, 64);
+    const t = new THREE.Texture(c);
+    t.needsUpdate = true;
+    return t;
+  }
+
+  initThree() {
+    const THREE = window.THREE;
+    const wrap = this.$('webgl');
+    const w = window.innerWidth, h = window.innerHeight;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(w, h);
+    wrap.appendChild(renderer.domElement);
+    this.renderer = renderer;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(55, w / h, 0.1, 100);
+    camera.position.z = 11;
+    this.scene = scene;
+    this.camera = camera;
+
+    const group = new THREE.Group();
+    scene.add(group);
+    this.group = group;
+
+    const sprite = this.makeSprite();
+    const palettes = {
+      Coral: ['#ff5a3c', '#a06bff', '#ffd0c4'],
+      Violet: ['#a06bff', '#ff5a3c', '#e3d4ff'],
+      Lime: ['#c8ff00', '#a06bff', '#eaffb0'],
+      Blue: ['#4d7cff', '#a06bff', '#cfe0ff']
+    };
+    const pal = palettes[this.props.orbColor] || palettes.Coral;
+    const cA = new THREE.Color(pal[0]), cB = new THREE.Color(pal[1]), cC = new THREE.Color(pal[2]);
+    const tmp = new THREE.Color();
+
+    // breathing point-blob
+    const R = 3.2;
+    const geo = new THREE.IcosahedronGeometry(R, 12);
+    const pos = geo.attributes.position;
+    const n = pos.count;
+    const dirs = new Float32Array(n * 3);
+    const col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      const l = Math.hypot(x, y, z) || 1;
+      dirs[i * 3] = x / l; dirs[i * 3 + 1] = y / l; dirs[i * 3 + 2] = z / l;
+      const t = (y / R + 1) / 2;
+      tmp.copy(cB).lerp(cA, t);
+      col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    this.dirs = dirs;
+    this.R = R;
+    const blobMat = new THREE.PointsMaterial({ size: 0.055, map: sprite, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.95, sizeAttenuation: true });
+    this.blob = new THREE.Points(geo, blobMat);
+    this.blobMat = blobMat;
+    group.add(this.blob);
+
+    // wireframe shell
+    const wgeo = new THREE.IcosahedronGeometry(4.15, 1);
+    this.shell = new THREE.LineSegments(
+      new THREE.WireframeGeometry(wgeo),
+      new THREE.LineBasicMaterial({ color: cB, transparent: true, opacity: 0.13, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    group.add(this.shell);
+
+    // soft core glow
+    this.core = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(2.3, 2),
+      new THREE.MeshBasicMaterial({ color: cA, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    group.add(this.core);
+
+    // ambient starfield
+    if (this.props.ambientWebGL !== false) {
+      const sN = 2600;
+      const sg = new THREE.BufferGeometry();
+      const sp = new Float32Array(sN * 3);
+      const sc = new Float32Array(sN * 3);
+      for (let i = 0; i < sN; i++) {
+        const r = 18 + Math.random() * 44;
+        const th = Math.random() * Math.PI * 2;
+        const ph = Math.acos(2 * Math.random() - 1);
+        sp[i * 3] = r * Math.sin(ph) * Math.cos(th);
+        sp[i * 3 + 1] = r * Math.sin(ph) * Math.sin(th);
+        sp[i * 3 + 2] = r * Math.cos(ph);
+        tmp.copy(cB).lerp(cC, Math.random());
+        const f = 0.35 + Math.random() * 0.6;
+        sc[i * 3] = tmp.r * f; sc[i * 3 + 1] = tmp.g * f; sc[i * 3 + 2] = tmp.b * f;
+      }
+      sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+      sg.setAttribute('color', new THREE.BufferAttribute(sc, 3));
+      this.stars = new THREE.Points(sg, new THREE.PointsMaterial({ size: 0.14, map: sprite, vertexColors: true, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true }));
+      scene.add(this.stars);
+    }
+
+    if (this.fine) {
+      window.addEventListener('mousemove', (e) => {
+        this.mouse.tx = (e.clientX / window.innerWidth) * 2 - 1;
+        this.mouse.ty = (e.clientY / window.innerHeight) * 2 - 1;
+      });
+    }
+  }
+
+  updateThree(elapsed) {
+    if (!this.renderer) return;
+    const t = elapsed * 0.0006 * this.speed;
+    const p = this.blob.geometry.attributes.position;
+    const a = p.array;
+    const d = this.dirs, R = this.R;
+    for (let i = 0; i < d.length; i += 3) {
+      const dx = d[i], dy = d[i + 1], dz = d[i + 2];
+      const nse = 0.5 * Math.sin(dx * 2.0 + t * 1.3)
+                + 0.5 * Math.sin(dy * 2.6 - t * 1.05)
+                + 0.4 * Math.sin(dz * 2.2 + t * 0.9)
+                + 0.3 * Math.sin((dx + dy + dz) * 3.0 - t * 1.6);
+      const r = R * (1 + 0.16 * nse);
+      a[i] = dx * r; a[i + 1] = dy * r; a[i + 2] = dz * r;
+    }
+    p.needsUpdate = true;
+
+    this.mouse.x += (this.mouse.tx - this.mouse.x) * 0.05;
+    this.mouse.y += (this.mouse.ty - this.mouse.y) * 0.05;
+    this._spin += 0.0016 * this.speed;
+
+    this.group.rotation.y = this._spin + this.mouse.x * 0.5;
+    this.group.rotation.x = this.mouse.y * 0.32;
+    this.shell.rotation.y = -this._spin * 0.6 - this.mouse.x * 0.15;
+    this.shell.rotation.x = this.mouse.y * 0.18;
+
+    if (this.stars) {
+      this.stars.rotation.y += 0.0003 * this.speed;
+      this.stars.rotation.x = this.mouse.y * 0.05;
+      this.stars.rotation.z = this.mouse.x * 0.05;
+    }
+
+    // scroll-driven feel
+    const sy = window.scrollY || 0;
+    const heroF = Math.max(0, Math.min(1, 1 - sy / window.innerHeight));
+    this.blobMat.opacity = 0.22 + 0.73 * heroF;
+    this.group.position.y = -(1 - heroF) * 1.4;
+    this.group.scale.setScalar(0.82 + 0.18 * heroF);
+
+    this.camera.position.x += (this.mouse.x * 0.7 - this.camera.position.x) * 0.04;
+    this.camera.position.y += (-this.mouse.y * 0.5 - this.camera.position.y) * 0.04;
+    this.camera.lookAt(0, 0, 0);
+
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  tick = (time) => {
+    if (this._dead) return;
+    if (this._lenis) this._lenis.raf(time * 1000);
+    this.updateThree(performance.now() - this._clock);
+  };
+
+  onResize() {
+    if (!this.renderer) return;
+    const w = window.innerWidth, h = window.innerHeight;
+    this.renderer.setSize(w, h);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    if (this._ST) this._ST.refresh();
+  }
+
+  /* ---------- custom cursor ---------- */
+  initCursor() {
+    const gsap = this._gsap;
+    const dot = this.$('cursor-dot');
+    const ring = this.$('cursor-ring');
+    document.body.style.cursor = 'none';
+    gsap.set([dot, ring], { opacity: 1 });
+    const dx = gsap.quickTo(dot, 'x', { duration: 0.15, ease: 'power3' });
+    const dy = gsap.quickTo(dot, 'y', { duration: 0.15, ease: 'power3' });
+    const rx = gsap.quickTo(ring, 'x', { duration: 0.4, ease: 'power3' });
+    const ry = gsap.quickTo(ring, 'y', { duration: 0.4, ease: 'power3' });
+    window.addEventListener('mousemove', (e) => {
+      dx(e.clientX); dy(e.clientY); rx(e.clientX); ry(e.clientY);
+    });
+    const grow = () => gsap.to(ring, { scale: 1.9, borderColor: 'rgba(160,107,255,0.9)', duration: 0.3 });
+    const shrink = () => gsap.to(ring, { scale: 1, borderColor: 'rgba(255,90,60,0.7)', duration: 0.3 });
+    this.q('a, button, [data-cursor], image-slot').forEach((el) => {
+      el.addEventListener('mouseenter', grow);
+      el.addEventListener('mouseleave', shrink);
+    });
+  }
+
+  /* ---------- scroll UI: progress bar + nav ---------- */
+  initScrollUI() {
+    const ST = this._ST;
+    const bar = this.$('scroll-progress');
+    ST.create({
+      start: 0, end: 'max',
+      onUpdate: (self) => { bar.style.transform = 'scaleX(' + self.progress + ')'; }
+    });
+    const nav = this.$('nav');
+    ST.create({
+      trigger: '#home', start: 'bottom 90px', end: 'bottom 90px',
+      onEnter: () => { nav.style.background = 'rgba(10,10,12,0.7)'; nav.style.backdropFilter = 'blur(12px)'; nav.style.borderBottomColor = 'rgba(255,255,255,0.08)'; nav.style.padding = '14px clamp(20px,6vw,100px)'; },
+      onLeaveBack: () => { nav.style.background = 'transparent'; nav.style.backdropFilter = 'none'; nav.style.borderBottomColor = 'transparent'; nav.style.padding = '20px clamp(20px,6vw,100px)'; }
+    });
+  }
+
+  /* ---------- reveals ---------- */
+  initReveals() {
+    const gsap = this._gsap, ST = this._ST;
+    const st = this.speed;
+
+    gsap.set('[data-line]', { yPercent: 115 });
+    ST.batch('[data-line]', {
+      start: 'top 90%',
+      onEnter: (els) => gsap.to(els, { yPercent: 0, duration: 1.1, ease: 'power4.out', stagger: 0.1 * st })
+    });
+
+    gsap.set('[data-fade]', { y: 42, opacity: 0 });
+    ST.batch('[data-fade]', {
+      start: 'top 88%',
+      onEnter: (els) => gsap.to(els, { y: 0, opacity: 1, duration: 0.95, ease: 'power3.out', stagger: 0.08 * st })
+    });
+
+    gsap.set('[data-resp], [data-skill-card], [data-service]', { y: 30, opacity: 0 });
+    ST.batch('[data-resp], [data-skill-card], [data-service]', {
+      start: 'top 90%',
+      onEnter: (els) => gsap.to(els, { y: 0, opacity: 1, duration: 0.8, ease: 'power3.out', stagger: 0.06 * st })
+    });
+
+    // counters
+    this.q('[data-count]').forEach((el) => {
+      const end = parseFloat(el.dataset.count);
+      const suffix = el.dataset.suffix || '';
+      ST.create({
+        trigger: el, start: 'top 92%', once: true,
+        onEnter: () => {
+          const o = { v: 0 };
+          gsap.to(o, { v: end, duration: 1.6, ease: 'power2.out', onUpdate: () => { el.textContent = Math.round(o.v) + suffix; } });
+        }
+      });
+    });
+
+    // subtle parallax on project media
+    this.q('[data-media]').forEach((el) => {
+      gsap.fromTo(el, { y: 40 }, { y: -40, ease: 'none', scrollTrigger: { trigger: el, start: 'top bottom', end: 'bottom top', scrub: true } });
+    });
+  }
+
+  /* ---------- magnetic buttons ---------- */
+  initMagnetic() {
+    if (!this.fine) return;
+    const gsap = this._gsap;
+    this.q('[data-magnetic]').forEach((el) => {
+      const mx = gsap.quickTo(el, 'x', { duration: 0.4, ease: 'power3' });
+      const my = gsap.quickTo(el, 'y', { duration: 0.4, ease: 'power3' });
+      el.addEventListener('mousemove', (e) => {
+        const r = el.getBoundingClientRect();
+        mx((e.clientX - (r.left + r.width / 2)) * 0.35);
+        my((e.clientY - (r.top + r.height / 2)) * 0.35);
+      });
+      el.addEventListener('mouseleave', () => { mx(0); my(0); });
+    });
+  }
+
+  /* ---------- nav smooth links ---------- */
+  initNav() {
+    this.q('[data-scroll-to]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const target = document.querySelector(el.getAttribute('data-scroll-to'));
+        if (target && this._lenis) this._lenis.scrollTo(target, { offset: -10, duration: 1.4 });
+        else if (target) target.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+    this.q('[data-navlink], [data-social]').forEach((el) => {
+      el.addEventListener('mouseenter', () => el.style.color = '#f2f2f4');
+      el.addEventListener('mouseleave', () => el.style.color = el.hasAttribute('data-social') ? '#8a8a92' : '#b6b6bd');
+    });
+  }
+
+  /* ---------- hover states (project media, skill cards) ---------- */
+  initHover() {
+    const gsap = this._gsap;
+    this.q('[data-project]').forEach((card) => {
+      const overlay = card.querySelector('[data-overlay]');
+      const img = card.querySelector('[data-zoom]');
+      card.addEventListener('mouseenter', () => {
+        if (overlay) overlay.style.opacity = '1';
+        if (img) gsap.to(img, { scale: 1.06, duration: 0.7, ease: 'power3.out' });
+      });
+      card.addEventListener('mouseleave', () => {
+        if (overlay) overlay.style.opacity = '0';
+        if (img) gsap.to(img, { scale: 1, duration: 0.7, ease: 'power3.out' });
+      });
+    });
+    this.q('[data-skill-card]').forEach((c) => {
+      const base = c.style.background;
+      const bb = c.style.borderColor;
+      c.addEventListener('mouseenter', () => { c.style.transform = 'translateY(-6px)'; c.style.borderColor = 'rgba(255,90,60,0.4)'; });
+      c.addEventListener('mouseleave', () => { c.style.transform = 'translateY(0)'; c.style.borderColor = bb || 'rgba(255,255,255,0.08)'; });
+    });
+    this.q('[data-service]').forEach((c) => {
+      c.addEventListener('mouseenter', () => c.style.background = '#131318');
+      c.addEventListener('mouseleave', () => c.style.background = '#0d0d10');
+    });
+  }
+
+  /* ---------- preloader ---------- */
+  runPreloader() {
+    const gsap = this._gsap;
+    const pre = this.$('preloader');
+    if (!pre) return;
+    const count = this.$('preload-count');
+    const bar = this.$('preload-bar');
+    const tl = gsap.timeline({ onComplete: () => { clearTimeout(this._safety); this._ST.refresh(); } });
+    const o = { v: 0 };
+    tl.to(o, { v: 100, duration: 1.5, ease: 'power2.inOut', onUpdate: () => {
+      count.textContent = String(Math.round(o.v)).padStart(3, '0');
+      bar.style.transform = 'scaleX(' + (o.v / 100) + ')';
+    } });
+    tl.to('#preloader [data-pl]', { yPercent: -120, duration: 0.6, ease: 'power3.in', stagger: 0.06 }, '-=0.15');
+    tl.to(pre, { yPercent: -100, duration: 0.9, ease: 'power4.inOut' }, '-=0.1');
+    tl.set(pre, { display: 'none' });
+    // hero reveal
+    tl.from('[data-hero-line]', { yPercent: 120, duration: 1.1, ease: 'power4.out', stagger: 0.09 }, '-=0.55');
+    tl.from('[data-hero-fade]', { y: 26, opacity: 0, duration: 0.85, ease: 'power3.out', stagger: 0.08 }, '-=0.7');
+  }
+
+  hidePreloader() {
+    const pre = this.$('preloader');
+    if (pre) pre.style.display = 'none';
+  }
+}
+</script>
+</body>
+</html>
