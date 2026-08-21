@@ -12,4 +12,12 @@ if (typeof window !== "undefined") {
 export const isFinePointer = (): boolean =>
   typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches;
 
+/**
+ * The CSS `prefers-reduced-motion` backstop cannot stop a rAF-driven tween, so
+ * every GSAP entry point has to check this in JS as well. Read at call time
+ * rather than cached: the OS setting can flip while the tab is open.
+ */
+export const prefersReducedMotion = (): boolean =>
+  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 export { gsap, ScrollTrigger, useGSAP };

@@ -14,14 +14,22 @@ export default function Cursor() {
     const r = ring.current;
 
     document.documentElement.classList.add("cursor-on");
-    gsap.set([d, r], { opacity: 1 });
 
     const dx = gsap.quickTo(d, "x", { duration: 0.15, ease: "power3" });
     const dy = gsap.quickTo(d, "y", { duration: 0.15, ease: "power3" });
     const rx = gsap.quickTo(r, "x", { duration: 0.4, ease: "power3" });
     const ry = gsap.quickTo(r, "y", { duration: 0.4, ease: "power3" });
 
+    // Fade in on the first real move. Revealing on mount parked the ring and
+    // dot at 0,0, so a visitor who never moved the mouse saw a stray circle
+    // pinned to the top-left corner.
+    let shown = false;
     const move = contextSafe((e: MouseEvent) => {
+      if (!shown) {
+        shown = true;
+        gsap.set([d, r], { x: e.clientX, y: e.clientY });
+        gsap.to([d, r], { opacity: 1, duration: 0.25, ease: "power2.out" });
+      }
       dx(e.clientX);
       dy(e.clientY);
       rx(e.clientX);

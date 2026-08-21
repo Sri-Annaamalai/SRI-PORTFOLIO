@@ -3,12 +3,17 @@
 import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap";
 
 /**
- * One controller for every scroll reveal on the page, mirroring the source
- * design's batched ScrollTriggers: clip-up headings, fade-rise blocks,
- * staggered cards, count-ups and parallaxing media.
+ * One controller for every scroll reveal on the page: clip-up headings,
+ * fade-rise blocks, staggered cards, count-ups and parallaxing media.
+ *
+ * Mounting also flags the animation layer as live, which cancels the boot
+ * failsafe in the root layout.
  */
 export default function Reveals() {
   useGSAP(() => {
+    const root = document.documentElement;
+    root.classList.add("gsap-live");
+
     // Own the start state in GSAP's transform model so the percent-based line
     // reveals animate correctly. The CSS anti-flash rule offsets these with a
     // `translateY(115%)`, which getComputedStyle reports as a pixel matrix;
@@ -20,7 +25,8 @@ export default function Reveals() {
 
     ScrollTrigger.batch("[data-line]", {
       start: "top 90%",
-      onEnter: (els) => gsap.to(els, { yPercent: 0, y: 0, duration: 1.1, ease: "power4.out", stagger: 0.1 }),
+      onEnter: (els) =>
+        gsap.to(els, { yPercent: 0, y: 0, duration: 1.1, ease: "power4.out", stagger: 0.1 }),
     });
 
     ScrollTrigger.batch("[data-fade]", {
@@ -58,7 +64,11 @@ export default function Reveals() {
       gsap.fromTo(
         el,
         { y: 40 },
-        { y: -40, ease: "none", scrollTrigger: { trigger: el, start: "top bottom", end: "bottom top", scrub: true } },
+        {
+          y: -40,
+          ease: "none",
+          scrollTrigger: { trigger: el, start: "top bottom", end: "bottom top", scrub: true },
+        },
       );
     });
 
