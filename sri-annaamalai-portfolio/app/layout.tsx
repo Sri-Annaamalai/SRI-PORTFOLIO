@@ -3,6 +3,7 @@ import { Space_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { site } from "@/lib/site";
 import OrbCanvas from "@/components/canvas/OrbCanvas";
+import OrbDirector from "@/components/canvas/OrbDirector";
 import SmoothScroll from "@/components/providers/SmoothScroll";
 import Preloader from "@/components/providers/Preloader";
 import Cursor from "@/components/ui/Cursor";
@@ -10,6 +11,9 @@ import ScrollProgress from "@/components/ui/ScrollProgress";
 import Nav from "@/components/ui/Nav";
 import Reveals from "@/components/ui/Reveals";
 import Spotlight from "@/components/ui/Spotlight";
+import MediaFX from "@/components/ui/MediaFX";
+import FilmOverlay from "@/components/ui/FilmOverlay";
+import CinemaHUD from "@/components/ui/CinemaHUD";
 
 const grotesk = Space_Grotesk({
   variable: "--font-grotesk",
@@ -80,8 +84,21 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           Skip to content
         </a>
 
+        {/* Liquid ripple used by MediaFX on the work screenshots. Defined once
+            here and only attached to an element for the length of a hover. */}
+        <svg width="0" height="0" aria-hidden focusable="false" style={{ position: "absolute" }}>
+          <defs>
+            <filter id="liquid" x="-5%" y="-5%" width="110%" height="110%" colorInterpolationFilters="sRGB">
+              <feTurbulence type="fractalNoise" baseFrequency="0.009 0.016" numOctaves="2" seed="4" result="noise" />
+              <feDisplacementMap id="liquid-disp" in="SourceGraphic" in2="noise" scale="0" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+          </defs>
+        </svg>
+
         <OrbCanvas />
+        <FilmOverlay />
         <ScrollProgress />
+        <CinemaHUD />
         <Cursor />
         <Preloader />
         <SmoothScroll>
@@ -89,6 +106,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <main className="relative z-[1]">{children}</main>
         </SmoothScroll>
         <Reveals />
+        <OrbDirector />
+        <MediaFX />
         <Spotlight />
       </body>
     </html>

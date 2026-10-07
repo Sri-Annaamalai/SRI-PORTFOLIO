@@ -3,6 +3,16 @@
 import { useRef } from "react";
 import { gsap, useGSAP, isFinePointer } from "@/lib/gsap";
 
+type CursorState = "idle" | "link" | "lens";
+
+const STATES: Record<CursorState, gsap.TweenVars> = {
+  idle: { scale: 1, borderColor: "rgba(255,90,60,0.7)", backgroundColor: "rgba(255,90,60,0)" },
+  link: { scale: 1.9, borderColor: "rgba(160,107,255,0.9)", backgroundColor: "rgba(160,107,255,0)" },
+  // Over a screenshot the ring opens into a soft lens, like a focus ring
+  // settling on a subject.
+  lens: { scale: 3.3, borderColor: "rgba(255,255,255,0.55)", backgroundColor: "rgba(255,90,60,0.1)" },
+};
+
 /** mix-blend cursor: a fast dot and a trailing ring that swells over targets. */
 export default function Cursor() {
   const dot = useRef<HTMLDivElement>(null);
@@ -35,22 +45,28 @@ export default function Cursor() {
       rx(e.clientX);
       ry(e.clientY);
     });
-    const grow = contextSafe(() => gsap.to(r, { scale: 1.9, borderColor: "rgba(160,107,255,0.9)", duration: 0.3 }));
-    const shrink = contextSafe(() => gsap.to(r, { scale: 1, borderColor: "rgba(255,90,60,0.7)", duration: 0.3 }));
+
+    // Delegated, so the state follows whatever is under the pointer without
+    // binding to elements that may mount later. `pointerover` fires on every
+    // element crossed, which also covers the way back out to idle.
+    let state: CursorState = "idle";
+    const set = (next: CursorState) => {
+      if (next === state) return;
+      state = next;
+      gsap.to(r, { ...STATES[next], duration: 0.35, ease: "power3.out", overwrite: "auto" });
+    };
+    const over = contextSafe((e: PointerEvent) => {
+      const target = (e.target as Element | null)?.closest<HTMLElement>("a, button, [data-cursor]");
+      if (!target) return set("idle");
+      set(target.dataset.cursor === "lens" ? "lens" : "link");
+    });
 
     window.addEventListener("mousemove", move);
-    const targets = Array.from(document.querySelectorAll("a, button, [data-cursor]"));
-    targets.forEach((el) => {
-      el.addEventListener("mouseenter", grow);
-      el.addEventListener("mouseleave", shrink);
-    });
+    document.addEventListener("pointerover", over);
 
     return () => {
       window.removeEventListener("mousemove", move);
-      targets.forEach((el) => {
-        el.removeEventListener("mouseenter", grow);
-        el.removeEventListener("mouseleave", shrink);
-      });
+      document.removeEventListener("pointerover", over);
       document.documentElement.classList.remove("cursor-on");
     };
   }, []);

@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { hero } from "@/lib/site";
-import { gsap, useGSAP } from "@/lib/gsap";
+import { gsap, SplitText, useGSAP } from "@/lib/gsap";
 import { onIntroDone } from "@/lib/intro";
 import { RevealLines } from "@/components/ui/RevealText";
 import Magnetic from "@/components/ui/Magnetic";
@@ -15,7 +15,7 @@ export default function Hero() {
   // the preloader signals it has cleared (selectors are scoped to this section).
   useGSAP(
     (_context, contextSafe) => {
-      if (!contextSafe) return;
+      if (!contextSafe || !root.current) return;
 
       // Establish the start state in GSAP's own transform model. The CSS
       // anti-flash rule pushes these down with a `translateY(120%)`, which
@@ -24,32 +24,75 @@ export default function Hero() {
       // leftover `y` after the reveal that keeps the line clipped out of view.
       // Pinning `y: 0` here makes GSAP own the whole transform, so animating
       // `yPercent -> 0` lands the line exactly at rest.
-      gsap.set("[data-hero-line]", { yPercent: 120, y: 0 });
+      const eyebrow = gsap.utils.toArray<HTMLElement>(".hero-eyebrow[data-hero-line]");
+      const titleLines = gsap.utils.toArray<HTMLElement>(".hero-title [data-hero-line]");
+      gsap.set(eyebrow, { yPercent: 120, y: 0 });
+
+      // The headline is split per word, not per character: splitting into
+      // characters breaks kerning at this display size, and the words are what
+      // the eye reads as the beats of the title anyway. The line itself comes
+      // to rest first; the words rise through the mask inside it.
+      const splits = titleLines.map((line) => new SplitText(line, { type: "words" }));
+      const words = splits.flatMap((s) => s.words as HTMLElement[]);
+      gsap.set(titleLines, { yPercent: 0, y: 0 });
+      gsap.set(words, { yPercent: 118, rotate: 7, transformOrigin: "0% 100%" });
       gsap.set("[data-hero-fade]", { y: 26, opacity: 0 });
+
       const play = contextSafe(() => {
-        gsap.to("[data-hero-line]", {
-          yPercent: 0,
-          y: 0,
-          duration: 1.1,
-          ease: "power4.out",
-          stagger: 0.09,
-        });
-        gsap.to("[data-hero-fade]", {
-          y: 0,
-          opacity: 1,
-          duration: 0.85,
-          ease: "power3.out",
-          stagger: 0.08,
-          delay: 0.35,
-        });
+        const tl = gsap.timeline();
+        tl.to(eyebrow, { yPercent: 0, y: 0, duration: 1, ease: "power4.out" }, 0);
+        tl.to(words, { yPercent: 0, rotate: 0, duration: 1.5, ease: "expo.out", stagger: 0.09 }, 0.05);
+        // Camera settle: the title starts a touch large and eases back, the way
+        // a handheld shot finds its frame.
+        tl.fromTo(
+          ".hero-title",
+          { scale: 1.08, transformOrigin: "0% 55%" },
+          { scale: 1, duration: 2.8, ease: "expo.out" },
+          0,
+        );
+        tl.to(
+          "[data-hero-fade]",
+          { y: 0, opacity: 1, duration: 0.95, ease: "power3.out", stagger: 0.09 },
+          0.55,
+        );
+        // Anamorphic streak: one slow horizontal sweep of light as the title lands.
+        tl.fromTo(
+          ".hero-flare",
+          { xPercent: -110, opacity: 0 },
+          { xPercent: 110, opacity: 1, duration: 2.1, ease: "power2.inOut" },
+          0.25,
+        );
+        tl.to(".hero-flare", { opacity: 0, duration: 0.7, ease: "power1.in" }, 1.7);
       });
-      return onIntroDone(play);
+
+      // Scroll-out, shot as a dolly back from the title. The block drifts up,
+      // shrinks and defocuses while each line slides sideways at its own
+      // speed, so the headline breaks apart in depth instead of just fading.
+      const out = gsap.timeline({
+        scrollTrigger: { trigger: root.current, start: "top top", end: "bottom top", scrub: 0.7 },
+      });
+      out.to(".hero-inner", { scale: 0.9, yPercent: -7, opacity: 0, filter: "blur(14px)", ease: "none" }, 0);
+      titleLines.forEach((line, i) => {
+        out.to(line, { xPercent: [-5, 4, -3][i % 3], ease: "none" }, 0);
+      });
+
+      const off = onIntroDone(play);
+      return () => {
+        off();
+        splits.forEach((s) => s.revert());
+      };
     },
     { scope: root },
   );
 
   return (
     <section ref={root} id="home" className="hero">
+      {/* The streak sweeps from beyond the left edge to beyond the right, so it
+          lives in its own clipped box. Left unclipped, its parked end position
+          widens the layout viewport on mobile browsers. */}
+      <div className="hero-flare-clip" aria-hidden>
+        <div className="hero-flare" />
+      </div>
       <div className="hero-inner">
         <div className="line-mask">
           <div data-hero-line className="hero-eyebrow">

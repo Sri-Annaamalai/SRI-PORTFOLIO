@@ -32,8 +32,12 @@ export default function SectionHeader({
         <span>{label}</span>
       </div>
 
+      {/* The statement variant is not clip-revealed. It is lit up word by word
+          as it scrolls through the viewport (see `data-scrub` in Reveals), so
+          its lines carry an inert attribute instead of `data-line`. */}
       <h2
         className={`sec-title m-0 ${isDisplay ? "display" : ""}`}
+        {...(isDisplay ? {} : { "data-scrub": "" })}
         style={
           isDisplay
             ? { fontSize: "clamp(32px,5.4vw,78px)" }
@@ -45,7 +49,7 @@ export default function SectionHeader({
               }
         }
       >
-        <RevealLines lines={title} className="block" />
+        <RevealLines lines={title} attr={isDisplay ? "data-line" : "data-scrub-line"} className="block" />
       </h2>
 
       {lede ? (

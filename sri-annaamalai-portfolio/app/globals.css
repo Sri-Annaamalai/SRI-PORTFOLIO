@@ -213,14 +213,6 @@ html.reveal-fallback [data-hero-fade] {
 /* ------------------------------------------------------------------ *
  * Keyframes
  * ------------------------------------------------------------------ */
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
 @keyframes scrolldot {
   0% {
     transform: translateY(0);
@@ -1405,6 +1397,401 @@ section[id] {
   .scroll-cue {
     display: none;
   }
+}
+
+/* ================================================================== *
+ * Cinematic layer
+ *
+ * Everything below is the film treatment added on top of the base design:
+ * the title-sequence preloader, grain and vignette, the edge HUD, the hero
+ * flare, drawn rules, the work media layers, button sweeps and the end card.
+ * Component wiring lives in components/ui/MediaFX.tsx, CinemaHUD.tsx,
+ * FilmOverlay.tsx and components/canvas/OrbDirector.tsx.
+ * ================================================================== */
+
+/* ------------------------------------------------------------------ *
+ * Title-sequence preloader. Two half-height panels, so the exit is a real
+ * aperture: they part to a 2.39:1 letterbox, hold, then retract.
+ * ------------------------------------------------------------------ */
+.pl-root {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+.pl-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: calc(50% + 1px);
+  background: var(--color-bg);
+}
+.pl-panel-top {
+  top: 0;
+}
+.pl-panel-bottom {
+  bottom: 0;
+}
+.pl-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(24px, 5vw, 64px);
+}
+.pl-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+.pl-row-end {
+  align-items: flex-end;
+}
+.pl-name {
+  overflow: hidden;
+  font-size: clamp(34px, 9vw, 132px);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  padding-bottom: 0.04em;
+}
+.pl-role {
+  margin-top: 18px;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(10px, 1.1vw, 13px);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+.pl-count {
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(40px, 7vw, 96px);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-coral);
+  font-variant-numeric: tabular-nums;
+}
+.pl-bar-track {
+  margin-top: 28px;
+  height: 1px;
+  width: 100%;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+}
+.pl-bar {
+  height: 100%;
+  width: 100%;
+  background: var(--color-coral);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+/* The name sets in per letter, so it must not paint before GSAP has split it. */
+html.gsap-ready .pl-name {
+  visibility: hidden;
+}
+html.reveal-fallback .pl-name {
+  visibility: visible;
+}
+
+/* ------------------------------------------------------------------ *
+ * Film look: grain and vignette. Plain alpha, no blend mode (see the note
+ * in components/ui/FilmOverlay.tsx).
+ * ------------------------------------------------------------------ */
+.film-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  background: radial-gradient(ellipse 125% 95% at 50% 46%, transparent 54%, rgba(0, 0, 0, 0.4) 100%);
+}
+.film-grain {
+  position: fixed;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  z-index: 71;
+  pointer-events: none;
+  opacity: 0.075;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain 1s steps(1) infinite;
+}
+@keyframes grain {
+  0%   { transform: translate(0, 0); }
+  12%  { transform: translate(-4%, -6%); }
+  25%  { transform: translate(-9%, 4%); }
+  37%  { transform: translate(5%, -11%); }
+  50%  { transform: translate(-3%, 10%); }
+  62%  { transform: translate(8%, 3%); }
+  75%  { transform: translate(-8%, -3%); }
+  87%  { transform: translate(3%, 8%); }
+  100% { transform: translate(0, 0); }
+}
+
+/* ------------------------------------------------------------------ *
+ * Edge HUD: timecode down the left margin, scene down the right. Only where
+ * the page margin is wide enough to hold them without touching content.
+ * ------------------------------------------------------------------ */
+.hud {
+  position: fixed;
+  top: 50%;
+  z-index: 75;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  writing-mode: vertical-rl;
+  transform: translateY(-50%) rotate(180deg);
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+  pointer-events: none;
+  user-select: none;
+}
+.hud-left {
+  left: 20px;
+}
+.hud-right {
+  right: 20px;
+}
+@media (min-width: 1180px) {
+  .hud {
+    display: flex;
+  }
+}
+.hud-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-coral);
+  animation: hudblink 1.6s var(--ease-in-out) infinite;
+}
+@keyframes hudblink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.hud-tc,
+.hud-no {
+  font-variant-numeric: tabular-nums;
+}
+.hud-no {
+  color: var(--color-coral);
+}
+.hud-slash {
+  color: var(--color-faintest);
+}
+.hud-clip {
+  display: inline-block;
+  overflow: hidden;
+}
+.hud-scene {
+  display: inline-block;
+}
+
+/* ------------------------------------------------------------------ *
+ * Hero: anamorphic streak that crosses once as the title lands.
+ * ------------------------------------------------------------------ */
+.hero-flare-clip {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+.hero-flare {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  top: 46%;
+  height: 2px;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 90, 60, 0) 24%,
+    rgba(255, 168, 140, 0.95) 50%,
+    rgba(160, 107, 255, 0) 76%,
+    transparent 100%
+  );
+  box-shadow: 0 0 36px 5px rgba(255, 90, 60, 0.32), 0 0 110px 18px rgba(160, 107, 255, 0.16);
+  mix-blend-mode: screen;
+}
+
+/* ------------------------------------------------------------------ *
+ * Drawn rules. Once JS is live the static top borders hand over to a
+ * `::before` line scaled by --rule, which Reveals animates 0 to 1 on enter.
+ * Without JS (or under the failsafe) the plain borders stay as they were.
+ * ------------------------------------------------------------------ */
+html.gsap-ready .sec-head,
+html.gsap-ready .role-row,
+html.gsap-ready .cert-group,
+html.gsap-ready .work-index-row,
+html.gsap-ready .work-meta-row {
+  position: relative;
+  border-top-color: transparent;
+}
+html.gsap-ready .sec-head::before,
+html.gsap-ready .role-row::before,
+html.gsap-ready .cert-group::before,
+html.gsap-ready .work-index-row::before,
+html.gsap-ready .work-meta-row::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--rule-color, var(--line-strong));
+  transform: scaleX(var(--rule, 0));
+  transform-origin: left;
+  pointer-events: none;
+  transition: background-color 400ms var(--ease-out);
+}
+html.gsap-ready .work-index-row:hover {
+  --rule-color: rgba(255, 90, 60, 0.55);
+}
+html.reveal-fallback .sec-head::before,
+html.reveal-fallback .role-row::before,
+html.reveal-fallback .cert-group::before,
+html.reveal-fallback .work-index-row::before,
+html.reveal-fallback .work-meta-row::before {
+  transform: none;
+}
+html.reveal-fallback .sec-head,
+html.reveal-fallback .role-row,
+html.reveal-fallback .cert-group,
+html.reveal-fallback .work-index-row,
+html.reveal-fallback .work-meta-row {
+  border-top-color: var(--line-strong);
+}
+
+/* ------------------------------------------------------------------ *
+ * Work media: frame (fade, lean) > card (tilt, iris) > layer (parallax).
+ * ------------------------------------------------------------------ */
+.media-frame {
+  position: relative;
+  perspective: 1100px;
+}
+.media-frame .media-card {
+  will-change: transform;
+}
+.media-layer {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+/* Specular glare follows the pointer; --gx / --gy are written by MediaFX. */
+.media-glare {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    440px circle at var(--gx, 50%) var(--gy, 50%),
+    rgba(255, 255, 255, 0.2),
+    transparent 62%
+  );
+  transition: opacity 450ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .media-frame:hover .media-glare {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Buttons: the ghost fills from below on hover, the primary catches a
+ * passing sheen. Both use an isolated stacking context so the effect sits
+ * above the button's own background and below its label.
+ * ------------------------------------------------------------------ */
+.btn-primary,
+.btn-ghost {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.btn-ghost {
+  transition: transform 160ms var(--ease-out), color 320ms var(--ease-out),
+    border-color 320ms var(--ease-out), background-color 250ms var(--ease-out);
+}
+.btn-ghost::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--color-fg);
+  transform: translateY(102%);
+  transition: transform 520ms var(--ease-out);
+}
+.btn-primary::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 45%;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  transform: translateX(0) skewX(-18deg);
+  pointer-events: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-ghost:hover {
+    color: var(--color-bg);
+    border-color: var(--color-fg);
+    background: transparent;
+  }
+  .btn-ghost:hover::before {
+    transform: translateY(0);
+  }
+  .btn-primary:hover::after {
+    animation: sheen 800ms var(--ease-out);
+  }
+}
+@keyframes sheen {
+  from { transform: translateX(0) skewX(-18deg); }
+  to { transform: translateX(520%) skewX(-18deg); }
+}
+
+/* ------------------------------------------------------------------ *
+ * Contact: lighter tint so the orb's closing push-in shows through, and
+ * the oversized end-card wordmark.
+ * ------------------------------------------------------------------ */
+.contact-stage {
+  background: linear-gradient(
+    to bottom,
+    rgba(10, 10, 12, 0.8) 0%,
+    rgba(10, 10, 12, 0.32) 52%,
+    rgba(10, 10, 12, 0.6) 100%
+  );
+  backdrop-filter: blur(1.5px);
+}
+.end-card {
+  margin-top: clamp(64px, 10vh, 130px);
+  pointer-events: none;
+}
+/* Sized so the whole name just fits the 1400px shell at every width, rather
+   than running off both edges. Outlined with a faint coral to violet fill. */
+.end-card-text {
+  display: block;
+  white-space: nowrap;
+  font-size: min(10.3vw, 163px);
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.2);
+  background-image: linear-gradient(100deg, rgba(255, 90, 60, 0.3), rgba(160, 107, 255, 0.3));
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 
 /* Motion is unconditional by design.

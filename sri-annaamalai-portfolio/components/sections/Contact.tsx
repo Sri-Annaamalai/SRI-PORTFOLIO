@@ -6,7 +6,7 @@ export default function Contact() {
   return (
     <section
       id="contact"
-      className="section-tint"
+      className="section-tint contact-stage"
       style={{ padding: "clamp(90px,14vh,170px) clamp(20px,6vw,100px) 0" }}
     >
       <div className="shell">
@@ -59,6 +59,15 @@ export default function Contact() {
               </a>
             );
           })}
+        </div>
+
+        {/* End card. The name runs oversized and outlined across the foot of
+            the page and drifts sideways as it scrolls into view, like the last
+            title of a reel. Decorative; the footer below carries the real text. */}
+        <div className="end-card" aria-hidden>
+          <span data-endcard className="end-card-text display">
+            {site.name.replace(/ M$/, "")}
+          </span>
         </div>
 
         <footer className="site-footer">

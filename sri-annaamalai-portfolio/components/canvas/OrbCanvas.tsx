@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { isFinePointer } from "@/lib/gsap";
+import { getLenis } from "@/lib/lenis";
+import { orbState } from "@/lib/motion";
 
 const CORAL = new THREE.Color("#ff5a3c");
 const VIOLET = new THREE.Color("#a06bff");
@@ -11,10 +13,10 @@ const VIOLET_INK = new THREE.Color("#e3d4ff");
 const R = 3.2;
 
 /**
- * The star field is built inside render, so it has to be reproducible: a fresh
- * `Math.random()` draw would scatter the stars anew whenever React happens to
- * re-run the memo. mulberry32 keeps the same uniform distribution while making
- * the field a fixed property of the seed.
+ * The star field and the assemble scatter are built inside render, so they
+ * have to be reproducible: a fresh `Math.random()` draw would scatter them
+ * anew whenever React happens to re-run the memo. mulberry32 keeps the same
+ * uniform distribution while making each field a fixed property of the seed.
  */
 function makeRng(seed: number) {
   let s = seed >>> 0;
@@ -28,8 +30,9 @@ function makeRng(seed: number) {
 }
 
 const STAR_SEED = 0x5eed1e;
+const SCATTER_SEED = 0xa55e3b;
 
-/** Soft round sprite so every point reads as a glow dot, not a square. */
+/** Soft round sprite so every star reads as a glow dot, not a square. */
 function makeSprite() {
   const c = document.createElement("canvas");
   c.width = c.height = 64;
@@ -45,64 +48,154 @@ function makeSprite() {
   return t;
 }
 
-type Mouse = { x: number; y: number; tx: number; ty: number };
+/**
+ * Particle globe, shaded entirely on the GPU.
+ *
+ * Every point is displaced along its own direction by layered sine noise (the
+ * breathing), then three scene-driven effects are layered on in clip space:
+ *   - assemble: points start as a scattered cloud and snap into the sphere
+ *   - cursor lens: points near the pointer are pushed outward and swell
+ *   - scroll warp: fast scrolling stretches the globe along the vertical axis
+ * Doing this in the vertex shader keeps ~10k points free on the CPU.
+ */
+const VERT = /* glsl */ `
+  uniform float uTime;
+  uniform float uAssemble;
+  uniform float uBias;
+  uniform float uVel;
+  uniform float uSize;
+  uniform float uScale;
+  uniform float uAspect;
+  uniform float uLens;
+  uniform vec2 uPointer;
+  uniform vec3 uCoral;
+  uniform vec3 uViolet;
+  attribute vec3 aScatter;
+  varying vec3 vColor;
+  varying float vLift;
+
+  void main() {
+    vec3 dir = normalize(position);
+    float t = uTime * 0.6;
+    float nse = 0.5 * sin(dir.x * 2.0 + t * 1.3)
+              + 0.5 * sin(dir.y * 2.6 - t * 1.05)
+              + 0.4 * sin(dir.z * 2.2 + t * 0.9)
+              + 0.3 * sin((dir.x + dir.y + dir.z) * 3.0 - t * 1.6);
+    vec3 p = dir * ${R.toFixed(2)} * (1.0 + 0.16 * nse);
+
+    // Cubic falloff: the cloud lingers, then the last stretch snaps home.
+    float k = 1.0 - uAssemble;
+    p += aScatter * k * k * k;
+
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    vec4 clip = projectionMatrix * mv;
+
+    vec2 ndc = clip.xy / clip.w;
+    vec2 d = ndc - uPointer;
+    d.x *= uAspect;
+    float dist = length(d);
+    float f = smoothstep(0.46, 0.0, dist) * uLens;
+    vec2 push = d / max(dist, 0.0001);
+    push.x /= uAspect;
+    clip.xy += push * f * 0.1 * clip.w;
+    clip.y += ndc.y * uVel * 0.05 * clip.w;
+
+    gl_Position = clip;
+
+    float tc = clamp((position.y / ${R.toFixed(2)} + 1.0) * 0.5 + uBias, 0.0, 1.0);
+    vColor = mix(uViolet, uCoral, tc);
+    vLift = f;
+    gl_PointSize = uSize * (1.0 + f * 1.6) * (uScale / -mv.z);
+  }
+`;
+
+const FRAG = /* glsl */ `
+  uniform float uOpacity;
+  varying vec3 vColor;
+  varying float vLift;
+
+  void main() {
+    float d = length(gl_PointCoord - 0.5);
+    if (d > 0.5) discard;
+    float a = pow(smoothstep(0.5, 0.04, d), 1.4);
+    vec3 col = vColor + vLift * 0.45;
+    gl_FragColor = vec4(col, a * uOpacity);
+    #include <colorspace_fragment>
+  }
+`;
+
+type Pointer = { tx: number; ty: number; x: number; y: number; moved: boolean };
 
 function Scene({
   detail,
   starCount,
-  animate,
   fine,
   sprite,
 }: {
   detail: number;
   starCount: number;
-  animate: boolean;
   fine: boolean;
   sprite: THREE.Texture;
 }) {
   const group = useRef<THREE.Group>(null);
-  const blob = useRef<THREE.Points>(null);
   const shell = useRef<THREE.LineSegments>(null);
   const stars = useRef<THREE.Points>(null);
+  const blobMat = useRef<THREE.ShaderMaterial>(null);
   const spin = useRef(0);
+  const vel = useRef(0);
+  const lens = useRef(0);
   // Owned here rather than handed down as a prop: useFrame counts as the
   // render path, and only a ref created by this component may be written from
   // there. The listener moves down with it.
-  const mouse = useRef<Mouse>({ x: 0, y: 0, tx: 0, ty: 0 });
+  const pointer = useRef<Pointer>({ tx: 0, ty: 0, x: 0, y: 0, moved: false });
 
   useEffect(() => {
-    if (!fine || !animate) return;
+    if (!fine) return;
     const onMove = (e: MouseEvent) => {
-      mouse.current.tx = (e.clientX / window.innerWidth) * 2 - 1;
-      mouse.current.ty = (e.clientY / window.innerHeight) * 2 - 1;
+      const p = pointer.current;
+      p.tx = (e.clientX / window.innerWidth) * 2 - 1;
+      p.ty = (e.clientY / window.innerHeight) * 2 - 1;
+      p.moved = true;
     };
     window.addEventListener("mousemove", onMove);
     return () => window.removeEventListener("mousemove", onMove);
-  }, [fine, animate]);
+  }, [fine]);
 
-  // Breathing point-blob: directions + vertex colours derived once.
-  const { blobGeo, dirs } = useMemo(() => {
+  const blobGeo = useMemo(() => {
     const geo = new THREE.IcosahedronGeometry(R, detail);
-    const pos = geo.attributes.position;
-    const n = pos.count;
-    const d = new Float32Array(n * 3);
-    const col = new Float32Array(n * 3);
-    const tmp = new THREE.Color();
+    const n = geo.attributes.position.count;
+    const scatter = new Float32Array(n * 3);
+    const rand = makeRng(SCATTER_SEED);
     for (let i = 0; i < n; i++) {
-      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-      const l = Math.hypot(x, y, z) || 1;
-      d[i * 3] = x / l;
-      d[i * 3 + 1] = y / l;
-      d[i * 3 + 2] = z / l;
-      const t = (y / R + 1) / 2;
-      tmp.copy(VIOLET).lerp(CORAL, t);
-      col[i * 3] = tmp.r;
-      col[i * 3 + 1] = tmp.g;
-      col[i * 3 + 2] = tmp.b;
+      // Random direction, random throw distance: a loose cloud, not a shell.
+      const th = rand() * Math.PI * 2;
+      const ph = Math.acos(2 * rand() - 1);
+      const dist = 5 + rand() * 17;
+      scatter[i * 3] = dist * Math.sin(ph) * Math.cos(th);
+      scatter[i * 3 + 1] = dist * Math.sin(ph) * Math.sin(th);
+      scatter[i * 3 + 2] = dist * Math.cos(ph);
     }
-    geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
-    return { blobGeo: geo, dirs: d };
+    geo.setAttribute("aScatter", new THREE.BufferAttribute(scatter, 3));
+    return geo;
   }, [detail]);
+
+  const uniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      uAssemble: { value: 0 },
+      uBias: { value: 0 },
+      uVel: { value: 0 },
+      uSize: { value: 0.06 },
+      uScale: { value: 450 },
+      uAspect: { value: 1.6 },
+      uLens: { value: 0 },
+      uPointer: { value: new THREE.Vector2(9, 9) },
+      uOpacity: { value: 0 },
+      uCoral: { value: CORAL },
+      uViolet: { value: VIOLET },
+    }),
+    [],
+  );
 
   const shellGeo = useMemo(() => new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(4.15, 1)), []);
   const coreGeo = useMemo(() => new THREE.IcosahedronGeometry(2.3, 2), []);
@@ -131,86 +224,95 @@ function Scene({
     return g;
   }, [starCount]);
 
-  useFrame((state) => {
-    if (!animate || !blob.current || !group.current) return;
-    const t = state.clock.elapsedTime * 0.6;
+  useFrame((state, delta) => {
+    const g = group.current;
+    const mat = blobMat.current;
+    if (!g || !mat) return;
 
-    // displace each point along its direction with layered sine noise
-    const attr = blob.current.geometry.attributes.position as THREE.BufferAttribute;
-    const a = attr.array as Float32Array;
-    for (let i = 0; i < dirs.length; i += 3) {
-      const dx = dirs[i], dy = dirs[i + 1], dz = dirs[i + 2];
-      const nse =
-        0.5 * Math.sin(dx * 2.0 + t * 1.3) +
-        0.5 * Math.sin(dy * 2.6 - t * 1.05) +
-        0.4 * Math.sin(dz * 2.2 + t * 0.9) +
-        0.3 * Math.sin((dx + dy + dz) * 3.0 - t * 1.6);
-      const r = R * (1 + 0.16 * nse);
-      a[i] = dx * r;
-      a[i + 1] = dy * r;
-      a[i + 2] = dz * r;
-    }
-    attr.needsUpdate = true;
+    const o = orbState;
+    const u = mat.uniforms;
+    const dt = Math.min(delta, 0.05);
+    // Frame-rate independent smoothing: same feel at 60Hz and 144Hz.
+    const ease = (rate: number) => 1 - Math.exp(-rate * dt);
 
-    const m = mouse.current;
-    m.x += (m.tx - m.x) * 0.05;
-    m.y += (m.ty - m.y) * 0.05;
-    spin.current += 0.0016;
+    // Scroll speed, normalised and smoothed. Drives the warp and the push-in.
+    const raw = getLenis()?.velocity ?? 0;
+    vel.current += (Math.max(-1, Math.min(1, raw / 45)) - vel.current) * ease(6);
+    const speed = Math.abs(vel.current);
 
-    // The hero copy is left-aligned, so the orb becomes the right-hand
-    // counterweight instead of sitting under the paragraph. Scaled off the
-    // world-space viewport width, and off entirely on narrow screens where
-    // the shift would push it out of frame.
+    const p = pointer.current;
+    p.x += (p.tx - p.x) * ease(5);
+    p.y += (p.ty - p.y) * ease(5);
+    // The lens only wakes once a real pointer has moved, so touch devices and
+    // visitors who never touch the mouse do not get a phantom dent at centre.
+    lens.current += ((p.moved ? 1 : 0) - lens.current) * ease(3);
+
+    u.uTime.value = state.clock.elapsedTime;
+    u.uAssemble.value = o.assemble;
+    u.uBias.value += (o.bias - u.uBias.value) * ease(3);
+    u.uVel.value = vel.current;
+    u.uLens.value = lens.current;
+    u.uPointer.value.set(p.x, -p.y);
+    u.uAspect.value = state.size.width / state.size.height;
+    u.uScale.value = (state.size.height * state.viewport.dpr) / 2;
+    u.uOpacity.value += (o.opacity * o.intro - u.uOpacity.value) * ease(4);
+
+    spin.current += dt * 0.1 * o.spin * (1 + speed * 5);
+
+    // The hero copy is left-aligned, so in the title chapter the orb becomes
+    // the right-hand counterweight. Offsets are fractions of the visible world
+    // width, and off entirely on narrow screens where they would push the
+    // globe out of frame.
     const vw = state.viewport.width;
-    group.current.position.x = vw > 12 ? vw * 0.14 : 0;
+    const targetX = vw > 12 ? vw * o.x : 0;
+    g.position.x += (targetX - g.position.x) * ease(3.5);
+    const s = g.scale.x + (o.scale - g.scale.x) * ease(3.5);
+    g.scale.setScalar(s);
 
-    group.current.rotation.y = spin.current + m.x * 0.5;
-    group.current.rotation.x = m.y * 0.32;
+    g.rotation.y = spin.current + p.x * 0.5;
+    g.rotation.x = p.y * 0.32;
     if (shell.current) {
-      shell.current.rotation.y = -spin.current * 0.6 - m.x * 0.15;
-      shell.current.rotation.x = m.y * 0.18;
+      shell.current.rotation.y = -spin.current * 0.6 - p.x * 0.15;
+      shell.current.rotation.x = p.y * 0.18;
+      const sm = shell.current.material as THREE.LineBasicMaterial;
+      sm.opacity = 0.13 * o.intro * Math.min(1, o.opacity + 0.25);
     }
     if (stars.current) {
-      stars.current.rotation.y += 0.0003;
-      stars.current.rotation.x = m.y * 0.05;
-      stars.current.rotation.z = m.x * 0.05;
+      stars.current.rotation.y += dt * 0.018 + speed * 0.004;
+      stars.current.rotation.x = p.y * 0.05;
+      stars.current.rotation.z = p.x * 0.05;
+      (stars.current.material as THREE.PointsMaterial).opacity = 0.6 * o.intro;
     }
 
-    // scroll-driven hero focus: dense + centred at top, dissolves on scroll
-    const sy = window.scrollY || 0;
-    const heroF = Math.max(0, Math.min(1, 1 - sy / window.innerHeight));
-    (blob.current.material as THREE.PointsMaterial).opacity = 0.22 + 0.73 * heroF;
-    group.current.position.y = -(1 - heroF) * 1.4;
-    group.current.scale.setScalar(0.82 + 0.18 * heroF);
-
-    // Same camera object useThree() hands back, reached through the frame
-    // state so we are not writing through a hook return value.
+    // Camera: pushes in on fast scrolls (a speed ramp), settles back after,
+    // and drifts slightly toward the pointer for parallax.
     const cam = state.camera;
-    cam.position.x += (m.x * 0.7 - cam.position.x) * 0.04;
-    cam.position.y += (-m.y * 0.5 - cam.position.y) * 0.04;
+    const camZ = o.z - speed * 1.6;
+    cam.position.z += (camZ - cam.position.z) * ease(3);
+    cam.position.x += (p.x * 0.7 - cam.position.x) * ease(2.4);
+    cam.position.y += (-p.y * 0.5 - cam.position.y) * ease(2.4);
     cam.lookAt(0, 0, 0);
   });
 
   return (
     <>
       <group ref={group}>
-        <points ref={blob} geometry={blobGeo}>
-          <pointsMaterial
-            size={0.055}
-            map={sprite}
-            vertexColors
+        <points geometry={blobGeo} frustumCulled={false}>
+          <shaderMaterial
+            ref={blobMat}
+            vertexShader={VERT}
+            fragmentShader={FRAG}
+            uniforms={uniforms}
             transparent
             depthWrite={false}
             blending={THREE.AdditiveBlending}
-            opacity={0.95}
-            sizeAttenuation
           />
         </points>
         <lineSegments ref={shell} geometry={shellGeo}>
           <lineBasicMaterial
             color={VIOLET}
             transparent
-            opacity={0.13}
+            opacity={0}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
           />
@@ -231,7 +333,7 @@ function Scene({
           map={sprite}
           vertexColors
           transparent
-          opacity={0.6}
+          opacity={0}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
           sizeAttenuation
@@ -256,10 +358,6 @@ function readConfig() {
   return {
     detail: small ? 7 : 12,
     starCount: small ? 900 : 2600,
-    // Motion is unconditional by design; see the note in app/globals.css.
-    // Setting this false also drops the canvas to frameloop="demand", which
-    // renders exactly one static frame.
-    animate: true,
     fine: isFinePointer(),
   };
 }
@@ -270,20 +368,23 @@ function Orb() {
   const [config] = useState(readConfig);
   const [sprite] = useState(makeSprite);
 
+  // Motion is unconditional by design (see the note in app/globals.css), so
+  // the loop always runs. It pauses only while the tab is hidden.
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const onVis = () => setVisible(!document.hidden);
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
   return (
     <Canvas
       dpr={[1, 2]}
-      frameloop={config.animate ? "always" : "demand"}
+      frameloop={visible ? "always" : "never"}
       camera={{ position: [0, 0, 11], fov: 55, near: 0.1, far: 100 }}
       gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
     >
-      <Scene
-        detail={config.detail}
-        starCount={config.starCount}
-        animate={config.animate}
-        fine={config.fine}
-        sprite={sprite}
-      />
+      <Scene detail={config.detail} starCount={config.starCount} fine={config.fine} sprite={sprite} />
     </Canvas>
   );
 }

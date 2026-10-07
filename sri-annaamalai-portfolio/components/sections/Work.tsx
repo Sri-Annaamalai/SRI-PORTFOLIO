@@ -21,19 +21,31 @@ function StackTags({ stack }: { stack: Project["stack"] }) {
   );
 }
 
+/**
+ * Three nested layers, each owned by exactly one motion so none of them fight
+ * over a transform (see components/ui/MediaFX.tsx):
+ *   frame  fades in, and leans with scroll velocity
+ *   card   tilts in 3D toward the pointer, and is clip-revealed on scroll
+ *   layer  holds the image: pointer parallax, scroll dolly, liquid hover
+ */
 function Media({ project }: { project: Project }) {
   if (!project.image) return null;
   return (
-    <div data-fade data-media className="media-card work-media">
-      <Image
-        src={project.image.src}
-        alt={project.image.alt}
-        fill
-        sizes="(max-width: 900px) 100vw, 700px"
-        className="media-zoom"
-        style={{ objectFit: "cover", objectPosition: "top center" }}
-      />
-      <div className="media-overlay" style={{ background: overlayBg(project.accent) }} aria-hidden />
+    <div data-fade data-tilt data-cursor="lens" className="media-frame work-media">
+      <div className="media-card">
+        <div className="media-layer">
+          <Image
+            src={project.image.src}
+            alt={project.image.alt}
+            fill
+            sizes="(max-width: 900px) 100vw, 700px"
+            className="media-zoom"
+            style={{ objectFit: "cover", objectPosition: "top center" }}
+          />
+        </div>
+        <div className="media-overlay" style={{ background: overlayBg(project.accent) }} aria-hidden />
+        <div className="media-glare" aria-hidden />
+      </div>
     </div>
   );
 }

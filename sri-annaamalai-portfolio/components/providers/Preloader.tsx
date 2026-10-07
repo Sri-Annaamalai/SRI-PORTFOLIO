@@ -1,28 +1,55 @@
 "use client";
 
 import { useRef } from "react";
-import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap";
+import { gsap, ScrollTrigger, SplitText, useGSAP } from "@/lib/gsap";
 import { markIntroDone } from "@/lib/intro";
+import { site } from "@/lib/site";
 
 const unlock = () => document.documentElement.classList.remove("is-loading");
 
+/**
+ * Opening title sequence, shot as three beats:
+ *
+ *   1. Title card: the name sets in letter by letter over a counting timecode.
+ *   2. Shutter: the black splits at the horizontal and parts to a 2.39:1
+ *      letterbox. The hero plays its own intro inside that frame.
+ *   3. Open up: the bars retract and the page takes the full screen.
+ *
+ * The black is two half-height panels rather than one overlay, which is what
+ * lets beats 2 and 3 be a real aperture instead of a slide-away.
+ */
 export default function Preloader() {
   const root = useRef<HTMLDivElement>(null);
+  const top = useRef<HTMLDivElement>(null);
+  const bottom = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  const name = useRef<HTMLDivElement>(null);
   const count = useRef<HTMLDivElement>(null);
   const bar = useRef<HTMLDivElement>(null);
 
   useGSAP(
     () => {
       const el = root.current;
-      if (!el) return;
+      if (!el || !top.current || !bottom.current || !name.current) return;
 
       // Safety net: never trap the user behind the overlay.
       const safety = window.setTimeout(() => {
         gsap.set(el, { display: "none" });
         unlock();
         markIntroDone();
-      }, 6500);
+      }, 8000);
 
+      // 2.39:1 is the cinema-scope ratio. On portrait screens the bars would
+      // eat most of the viewport, so they are capped at a fifth of the height.
+      const vh = window.innerHeight;
+      const scope = (vh - window.innerWidth / 2.39) / 2;
+      const letterbox = Math.round(Math.min(Math.max(scope, 0), vh * 0.2));
+
+      const split = new SplitText(name.current, { type: "chars" });
+      gsap.set(split.chars, { yPercent: 118, rotate: 7, transformOrigin: "0% 100%" });
+      gsap.set(name.current, { visibility: "visible" });
+
+      const counter = { v: 0 };
       const tl = gsap.timeline({
         onComplete: () => {
           window.clearTimeout(safety);
@@ -30,61 +57,92 @@ export default function Preloader() {
         },
       });
 
-      const counter = { v: 0 };
-      tl.to(counter, {
-        v: 100,
-        duration: 1.5,
-        ease: "power2.inOut",
-        onUpdate: () => {
-          if (count.current) count.current.textContent = String(Math.round(counter.v)).padStart(3, "0");
-          if (bar.current) bar.current.style.transform = `scaleX(${counter.v / 100})`;
+      // Beat 1: title card.
+      tl.fromTo(
+        "[data-pl-meta]",
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.7, ease: "power2.out", stagger: 0.08 },
+        0,
+      );
+      tl.to(
+        split.chars,
+        { yPercent: 0, rotate: 0, duration: 1, ease: "expo.out", stagger: 0.03 },
+        0.1,
+      );
+      tl.to(
+        counter,
+        {
+          v: 100,
+          duration: 1.4,
+          ease: "power2.inOut",
+          onUpdate: () => {
+            if (count.current) count.current.textContent = String(Math.round(counter.v)).padStart(3, "0");
+            if (bar.current) bar.current.style.transform = `scaleX(${counter.v / 100})`;
+          },
         },
-      });
+        0.1,
+      );
 
-      tl.to(el.querySelectorAll("[data-pl]"), { yPercent: -120, duration: 0.6, ease: "power3.in", stagger: 0.06 }, "-=0.15");
-      tl.to(el, { yPercent: -100, duration: 0.9, ease: "power4.inOut", onStart: unlock }, "-=0.1");
-      // Cue the hero's own (scoped) intro as the overlay slides away.
-      tl.call(markIntroDone, undefined, "-=0.55");
+      // Hold on the full title for a beat, then the letters leave upward.
+      tl.to(split.chars, { yPercent: -118, rotate: -4, duration: 0.55, ease: "power3.in", stagger: 0.015 }, ">+0.1");
+      tl.to(stage.current, { opacity: 0, duration: 0.3, ease: "power2.in" }, "<0.2");
+
+      // Beat 2: shutter parts to the letterbox, and the hero starts.
+      tl.to([top.current, bottom.current], { height: letterbox, duration: 0.95, ease: "expo.inOut" }, ">-0.05");
+      tl.call(
+        () => {
+          el.style.pointerEvents = "none";
+          markIntroDone();
+        },
+        undefined,
+        "<0.3",
+      );
+
+      // Beat 3: hold inside the frame while the title lands, then open up.
+      tl.to({}, { duration: letterbox > 0 ? 0.75 : 0.2 });
+      tl.call(unlock);
+      tl.to([top.current, bottom.current], { height: 0, duration: 1.1, ease: "expo.inOut" });
       tl.set(el, { display: "none" });
+
+      return () => {
+        window.clearTimeout(safety);
+        split.revert();
+      };
     },
     { scope: root },
   );
 
   return (
-    <div
-      ref={root}
-      id="preloader"
-      className="fixed inset-0 z-[100] flex flex-col justify-end bg-bg"
-      style={{ padding: "clamp(24px,5vw,64px)" }}
-    >
-      <div className="overflow-hidden">
-        <div data-pl className="mono mb-[18px] text-faint" style={{ fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase" }}>
-          Portfolio — Sri Annaamalai M
+    <div ref={root} id="preloader" className="pl-root" aria-hidden>
+      <div ref={top} className="pl-panel pl-panel-top" />
+      <div ref={bottom} className="pl-panel pl-panel-bottom" />
+
+      <div ref={stage} className="pl-stage">
+        <div className="pl-row">
+          <span data-pl-meta>Reel 2026</span>
+          <span data-pl-meta>24 fps &middot; 2.39:1</span>
         </div>
-      </div>
-      <div className="flex flex-wrap items-end justify-between gap-6">
-        <div className="overflow-hidden">
-          <div
-            data-pl
-            className="display"
-            style={{ fontSize: "clamp(48px,10vw,140px)", lineHeight: 0.9, letterSpacing: "-0.03em", textTransform: "none" }}
-          >
-            Loading
+
+        <div className="pl-title-wrap">
+          <div ref={name} className="display pl-name">
+            {site.name.replace(/ M$/, "")}
+          </div>
+          <div data-pl-meta className="pl-role">
+            {site.discipline}
           </div>
         </div>
-        <div className="overflow-hidden">
-          <div
-            data-pl
-            ref={count}
-            className="mono text-coral"
-            style={{ fontSize: "clamp(40px,7vw,96px)", fontWeight: 700, lineHeight: 1 }}
-          >
-            000
+
+        <div>
+          <div className="pl-row pl-row-end">
+            <span data-pl-meta>Loading</span>
+            <div ref={count} className="pl-count">
+              000
+            </div>
+          </div>
+          <div className="pl-bar-track">
+            <div ref={bar} className="pl-bar" />
           </div>
         </div>
-      </div>
-      <div className="mt-7 h-px w-full overflow-hidden" style={{ background: "rgba(255,255,255,0.1)" }}>
-        <div ref={bar} className="h-full w-full origin-left bg-coral" style={{ transform: "scaleX(0)" }} />
       </div>
     </div>
   );
