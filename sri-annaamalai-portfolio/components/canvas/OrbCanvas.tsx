@@ -6,28 +6,14 @@ import * as THREE from "three";
 import { isFinePointer } from "@/lib/gsap";
 import { getLenis } from "@/lib/lenis";
 import { orbState } from "@/lib/motion";
+import { makeRng } from "@/lib/rng";
+import { hasWebGL } from "@/lib/webgl";
+import OrbFallback from "./OrbFallback";
 
 const CORAL = new THREE.Color("#ff5a3c");
 const VIOLET = new THREE.Color("#a06bff");
 const VIOLET_INK = new THREE.Color("#e3d4ff");
 const R = 3.2;
-
-/**
- * The star field and the assemble scatter are built inside render, so they
- * have to be reproducible: a fresh `Math.random()` draw would scatter them
- * anew whenever React happens to re-run the memo. mulberry32 keeps the same
- * uniform distribution while making each field a fixed property of the seed.
- */
-function makeRng(seed: number) {
-  let s = seed >>> 0;
-  return () => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 const STAR_SEED = 0x5eed1e;
 const SCATTER_SEED = 0xa55e3b;
@@ -371,6 +357,9 @@ function Orb() {
   // and both initialisers run exactly once, on the client.
   const [config] = useState(readConfig);
   const [sprite] = useState(makeSprite);
+  // Probed before the 3D canvas is allowed to mount. See lib/webgl.ts for why
+  // this cannot be handled with an error boundary instead.
+  const [webgl, setWebgl] = useState(hasWebGL);
 
   // Motion is unconditional by design (see the note in app/globals.css), so
   // the loop always runs. It pauses only while the tab is hidden.
@@ -380,6 +369,23 @@ function Orb() {
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
+
+  // Last resort: the probe passed but the renderer still could not be built
+  // (a context the browser refuses at the point of use). R3F reports that as an
+  // unhandled rejection, so catch it here and hand over to the 2D globe.
+  useEffect(() => {
+    const onRejection = (e: PromiseRejectionEvent) => {
+      const reason = e.reason as { message?: string } | string | undefined;
+      const text = typeof reason === "string" ? reason : (reason?.message ?? "");
+      if (!/webgl/i.test(text)) return;
+      e.preventDefault();
+      setWebgl(false);
+    };
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => window.removeEventListener("unhandledrejection", onRejection);
+  }, []);
+
+  if (!webgl) return <OrbFallback />;
 
   return (
     <Canvas
