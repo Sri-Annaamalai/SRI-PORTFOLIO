@@ -111,13 +111,16 @@ const VERT = /* glsl */ `
 
 const FRAG = /* glsl */ `
   uniform float uOpacity;
+  uniform sampler2D uMap;
   varying vec3 vColor;
   varying float vLift;
 
   void main() {
-    float d = length(gl_PointCoord - 0.5);
-    if (d > 0.5) discard;
-    float a = pow(smoothstep(0.5, 0.04, d), 1.4);
+    // The same glow sprite the original PointsMaterial used as its \`map\`,
+    // sampled the same way. At this point size the texture is mip-averaged into
+    // a soft solid block, which is what gives the globe its dense, colourful
+    // dot rows. An analytic falloff shrinks each dot to a speck and loses it.
+    float a = texture2D(uMap, gl_PointCoord).a;
     vec3 col = vColor + vLift * 0.45;
     gl_FragColor = vec4(col, a * uOpacity);
     #include <colorspace_fragment>
@@ -185,16 +188,17 @@ function Scene({
       uAssemble: { value: 0 },
       uBias: { value: 0 },
       uVel: { value: 0 },
-      uSize: { value: 0.06 },
+      uSize: { value: 0.055 },
       uScale: { value: 450 },
       uAspect: { value: 1.6 },
       uLens: { value: 0 },
       uPointer: { value: new THREE.Vector2(9, 9) },
       uOpacity: { value: 0 },
+      uMap: { value: sprite },
       uCoral: { value: CORAL },
       uViolet: { value: VIOLET },
     }),
-    [],
+    [sprite],
   );
 
   const shellGeo = useMemo(() => new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(4.15, 1)), []);
